@@ -7,13 +7,13 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
 const db = require('./db');
-const { getSystemStats, getApps, getServices, pm2Action } = require('./system');
+const { getSystemStats, getApps, getServices, pm2Action, systemctlAction } = require('./system');
 const { execSudo } = require('./shellService');
 const { getSites, createSite, issueSsl } = require('./nginx');
 const { getCronJobs, addCronJob } = require('./cron');
 const { deployApp } = require('./deploy');
 const { getPhpVersions, restartPhpFpm } = require('./php');
-const { getDatabases, createDatabase, createUser, getUsers, deleteUser } = require('./mariadb');
+const { getDatabases, createDatabase, createUser, getUsers, deleteUser, restartMariaDb } = require('./mariadb');
 
 const app = express();
 const server = http.createServer(app);
@@ -105,11 +105,28 @@ app.get('/api/system/services', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/nginx/reload', authenticateToken, async (req, res) => {
+app.post('/api/system/services/action', authenticateToken, async (req, res) => {
   try {
-    const { stdout, stderr } = await execSudo('systemctl reload nginx');
-    res.json({ success: true, message: 'Nginx reloaded', stdout, stderr });
+    const { serviceName, action, sudoPassword } = req.body;
+    await systemctlAction(serviceName, action, sudoPassword);
+    res.json({ success: true });
   } catch (error) {
+    if (error.message === 'SUDO_REQUIRED' || error.message === 'SUDO_INVALID') {
+      return res.status(403).json({ error: error.message });
+    }
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/nginx/restart', authenticateToken, async (req, res) => {
+  try {
+    const { sudoPassword } = req.body;
+    await execSudo('systemctl restart nginx', sudoPassword);
+    res.json({ success: true, message: 'Nginx restarted successfully' });
+  } catch (error) {
+    if (error.message === 'SUDO_REQUIRED' || error.message === 'SUDO_INVALID') {
+      return res.status(403).json({ error: error.message });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -220,9 +237,11 @@ app.post('/api/databases', authenticateToken, async (req, res) => {
       return res.json({ success: true });
     } else if (action === 'delete_user') {
       await deleteUser(username, host, sudoPassword);
-      return res.json({ success: true });
-    }
-    res.status(400).json({ error: 'Invalid action' });
+      res.json({ success: true });
+    } else if (action === 'restart') {
+      await restartMariaDb(sudoPassword);
+      res.json({ success: true });
+    } else {   res.status(400).json({ error: 'Invalid action' }); }
   } catch (error) {
     if (error.message === 'SUDO_REQUIRED' || error.message === 'SUDO_INVALID') {
       return res.status(403).json({ error: error.message });

@@ -56,4 +56,8 @@ const deleteUser = async (username, host, sudoPassword) => {
   await execMysql(`DROP USER '${username}'@'${host}';`, sudoPassword);
 };
 
-module.exports = { getDatabases, createDatabase, createUser, getUsers, deleteUser };
+const restartMariaDb = async (sudoPassword) => {
+  await execSudo(`systemctl restart mariadb`, sudoPassword);
+};
+
+module.exports = { getDatabases, createDatabase, createUser, getUsers, deleteUser, restartMariaDb };

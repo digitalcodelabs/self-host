@@ -52,7 +52,7 @@ const getServices = async () => {
     });
   };
 
-  const servicesToCheck = ['nginx', 'mysql', 'mariadb', 'redis-server', 'memcached'];
+  const servicesToCheck = ['nginx', 'mariadb', 'redis-server', 'memcached'];
   try {
     const dirs = await require('fs/promises').readdir('/etc/php');
     const versions = dirs.filter(v => /^\d+\.\d+$/.test(v));
@@ -86,6 +86,8 @@ const pm2Action = (appName, action) => {
   });
 };
 
+const { execSudo } = require('./shellService');
+
 const getAppLogs = (appName) => {
   return new Promise((resolve, reject) => {
     pm2.connect((err) => {
@@ -110,4 +112,16 @@ const getAppLogs = (appName) => {
   });
 };
 
-module.exports = { getSystemStats, getApps, getServices, pm2Action, getAppLogs };
+const systemctlAction = async (serviceName, action, sudoPassword = null) => {
+  const allowedServices = ['nginx', 'mysql', 'mariadb', 'redis-server', 'memcached'];
+  const isPhp = serviceName.startsWith('php') && serviceName.endsWith('-fpm');
+  if (!allowedServices.includes(serviceName) && !isPhp) {
+    throw new Error('Service not allowed');
+  }
+  if (!['start', 'stop', 'restart', 'reload'].includes(action)) {
+    throw new Error('Action not allowed');
+  }
+  await execSudo(`systemctl ${action} ${serviceName}`, sudoPassword);
+};
+
+module.exports = { getSystemStats, getApps, getServices, pm2Action, getAppLogs, systemctlAction };

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
+import SudoPrompt from '../components/SudoPrompt.vue'
 
 const stats = ref({ cpuLoad: '0', memory: { percent: 0, used: '0', total: '0' } })
 const cpuHistory = ref(Array(20).fill(0))
@@ -79,6 +80,59 @@ const performAppAction = async (appName, action) => {
     fetchDashboardData()
   } catch (err) {
     error.value = 'Action failed'
+  }
+}
+
+const showSudoPrompt = ref(false)
+const sudoError = ref('')
+const currentSudoPassword = ref(null)
+const currentServiceAction = ref(null)
+
+const handleSudoSubmit = (pwd) => {
+  if (currentServiceAction.value) {
+    performServiceAction(currentServiceAction.value.serviceName, currentServiceAction.value.action, pwd)
+  }
+}
+
+const performServiceAction = async (serviceName, action, sudoPwd = null) => {
+  if (typeof sudoPwd === 'string') currentSudoPassword.value = sudoPwd
+
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch('/api/system/services/action', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ serviceName, action, sudoPassword: currentSudoPassword.value })
+    })
+    
+    const data = await res.json()
+
+    if (res.status === 403 && data.error === 'SUDO_REQUIRED') {
+      currentServiceAction.value = { serviceName, action }
+      showSudoPrompt.value = true
+      return
+    }
+    if (res.status === 403 && data.error === 'SUDO_INVALID') {
+      sudoError.value = 'Incorrect sudo password.'
+      showSudoPrompt.value = true
+      currentSudoPassword.value = null
+      return
+    }
+
+    showSudoPrompt.value = false
+    currentServiceAction.value = null
+
+    if (res.ok) {
+      error.value = ''
+      await fetchDashboardData()
+    } else {
+      error.value = `Failed to ${action} ${serviceName}: ${data.error}`
+    }
+  } catch (err) {
+    error.value = `Failed to ${action} ${serviceName}`
   }
 }
 
@@ -172,6 +226,13 @@ const refreshLogs = async () => {
         Deploy New App
       </router-link>
     </header>
+
+    <SudoPrompt 
+      :isOpen="showSudoPrompt" 
+      :error="sudoError" 
+      @submit="handleSudoSubmit" 
+      @cancel="showSudoPrompt = false; currentServiceAction = null" 
+    />
 
     <div v-if="error" class="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-md text-sm text-red-500">
       {{ error }}
@@ -274,6 +335,19 @@ const refreshLogs = async () => {
                   <span>Status: {{ service.status }}</span>
                 </div>
               </div>
+            </div>
+            
+            <div class="flex items-center space-x-2">
+              <button @click="performServiceAction(service.name, 'restart')" class="text-gray-500 hover:text-white p-1.5 transition-colors rounded-md hover:bg-gray-800" title="Restart">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              </button>
+              
+              <button v-if="service.status === 'online'" @click="performServiceAction(service.name, 'stop')" class="text-red-400 hover:text-red-300 p-1.5 transition-colors rounded-md hover:bg-red-500/10" title="Stop">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path></svg>
+              </button>
+              <button v-else @click="performServiceAction(service.name, 'start')" class="text-green-400 hover:text-green-300 p-1.5 transition-colors rounded-md hover:bg-green-500/10" title="Start">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              </button>
             </div>
           </div>
         </div>

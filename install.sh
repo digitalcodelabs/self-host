@@ -53,6 +53,7 @@ $PANEL_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart mysql
 $PANEL_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart mariadb
 $PANEL_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart redis-server
 $PANEL_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart memcached
+$PANEL_USER ALL=(ALL) NOPASSWD: /usr/bin/mysql
 $PANEL_USER ALL=(ALL) NOPASSWD: /bin/mv /tmp/*.conf /etc/nginx/sites-available/
 $PANEL_USER ALL=(ALL) NOPASSWD: /bin/ln -s /etc/nginx/sites-available/* /etc/nginx/sites-enabled/
 $PANEL_USER ALL=(ALL) NOPASSWD: /bin/rm /etc/nginx/sites-available/*

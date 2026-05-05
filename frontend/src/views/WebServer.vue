@@ -12,6 +12,10 @@ const documentRoot = ref('/var/www/myapp.com/public')
 const phpVersion = ref('')
 const loading = ref(false)
 
+const message = ref('')
+const messageType = ref('success')
+const restartingNginx = ref(false)
+
 let hasManuallyEditedRoot = false
 
 watch(domain, (newVal) => {
@@ -44,6 +48,7 @@ const currentDomainForSsl = ref('')
 const handleSudoSubmit = (pwd) => {
   if (sudoAction.value === 'createSite') createSite(pwd)
   else if (sudoAction.value === 'issueSsl') issueSsl(currentDomainForSsl.value, pwd)
+  else if (sudoAction.value === 'restartNginx') restartNginx(pwd)
 }
 
 const issueSsl = async (domainToIssue, sudoPwd = null) => {
@@ -135,6 +140,57 @@ const createSite = async (sudoPwd = null) => {
   loading.value = false
 }
 
+const restartNginx = async (sudoPwd = null) => {
+  sudoAction.value = 'restartNginx'
+  if (typeof sudoPwd === 'string') currentSudoPassword.value = sudoPwd
+
+  restartingNginx.value = true
+  message.value = ''
+  sudoError.value = ''
+
+  try {
+    const res = await fetch('/api/nginx/restart', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ sudoPassword: currentSudoPassword.value })
+    })
+    const data = await res.json()
+
+    if (res.status === 403 && data.error === 'SUDO_REQUIRED') {
+      showSudoPrompt.value = true
+      restartingNginx.value = false
+      return
+    }
+    if (res.status === 403 && data.error === 'SUDO_INVALID') {
+      sudoError.value = 'Incorrect sudo password.'
+      showSudoPrompt.value = true
+      restartingNginx.value = false
+      currentSudoPassword.value = null
+      return
+    }
+
+    showSudoPrompt.value = false
+    if (res.ok) {
+      messageType.value = 'success'
+      message.value = 'Nginx restarted successfully.'
+    } else {
+      messageType.value = 'error'
+      message.value = `Failed to restart Nginx: ${data.error || 'Unknown error'}`
+    }
+  } catch (error) {
+    messageType.value = 'error'
+    message.value = 'An error occurred while restarting Nginx.'
+  } finally {
+    restartingNginx.value = false
+    if (messageType.value === 'success') {
+      setTimeout(() => { message.value = '' }, 5000)
+    }
+  }
+}
+
 onMounted(fetchSitesAndPHP)
 </script>
 
@@ -146,10 +202,32 @@ onMounted(fetchSitesAndPHP)
       @submit="handleSudoSubmit" 
       @cancel="showSudoPrompt = false; loading = false" 
     />
-    <header class="mb-8">
-      <h2 class="text-2xl font-bold tracking-tight text-white">Web Server (Nginx)</h2>
-      <p class="text-gray-400 text-sm mt-1">Manage virtual hosts and reverse proxies.</p>
+    <header class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h2 class="text-2xl font-bold tracking-tight text-white">Web Server (Nginx)</h2>
+        <p class="text-gray-400 text-sm mt-1">Manage virtual hosts and reverse proxies.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button @click="restartNginx()" :disabled="restartingNginx" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-gray-700 shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" :class="{'animate-spin': restartingNginx}"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          {{ restartingNginx ? 'Restarting...' : 'Restart Nginx' }}
+        </button>
+      </div>
     </header>
+
+    <!-- Feedback Message -->
+    <div v-if="message" 
+         :class="messageType === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'" 
+         class="mb-6 px-4 py-3 rounded-lg border flex items-center justify-between transition-all duration-300">
+      <div class="flex items-center gap-2">
+        <svg v-if="messageType === 'success'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span class="text-sm font-medium">{{ message }}</span>
+      </div>
+      <button @click="message = ''" class="hover:opacity-70 transition-opacity focus:outline-none">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+      </button>
+    </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div class="lg:col-span-2 bg-gray-950 border border-gray-800 rounded-xl shadow-sm overflow-hidden h-fit">
