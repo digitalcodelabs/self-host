@@ -43,6 +43,21 @@ Upon starting the backend for the first time, it will auto-seed the SQLite datab
 
 *(Ensure you change these immediately in a production environment!)*
 
+## ⚙️ Environment Configuration
+
+For enhanced security and functionality, you can create a `.env` file inside the `backend/` directory to configure the panel.
+
+```env
+# Secure your JWT sessions (defaults to a static key if omitted)
+JWT_SECRET=your_super_secret_random_string_here
+
+# MariaDB connection credentials (Optional)
+# If omitted, the panel gracefully prompts for your sudo password 
+# via the UI when performing database management actions.
+DB_USER=dbadmin
+DB_PASS=dbadmin_password
+```
+
 ## ✨ Features
 
 - **Live Dashboard:** Real-time CPU and Memory monitoring.

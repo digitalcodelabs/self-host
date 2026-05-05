@@ -8,6 +8,7 @@ import CronJobs from './views/CronJobs.vue'
 import Databases from './views/Databases.vue'
 import PhpManager from './views/PhpManager.vue'
 import Settings from './views/Settings.vue'
+import NotFound from './views/NotFound.vue'
 
 const routes = [
   { path: '/login', component: Login, name: 'Login' },
@@ -24,7 +25,8 @@ const routes = [
       { path: 'databases', component: Databases, name: 'Databases' },
       { path: 'settings', component: Settings, name: 'Settings' }
     ]
-  }
+  },
+  { path: '/:pathMatch(.*)*', component: NotFound, name: 'NotFound' }
 ]
 
 const router = createRouter({
