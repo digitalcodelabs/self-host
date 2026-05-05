@@ -1,4 +1,4 @@
-# Server Panel by DigitalCodeLabs
+# Server Panel by [DigitalCodeLabs](https://digitalcodelabs.dev)
 
 A modern, lightweight server management panel for Ubuntu/Debian, designed as a fast alternative to legacy control panels. It features a Node.js/Express backend and a Vue 3 + Vite frontend, utilizing a clean, Shadcn-inspired interface.
 
