@@ -58,6 +58,27 @@ DB_USER=dbadmin
 DB_PASS=dbadmin_password
 ```
 
+## 🛠️ Troubleshooting
+
+If you encounter issues after running the installation script on a live server, here are the most common solutions:
+
+### 1. "404 Not Found" when accessing your Server IP
+If you see a generic white Nginx "404 Not Found" page when navigating to your server's IP address, it means another Nginx configuration (like a default Ubuntu config) is catching the traffic before the panel does.
+- **Fix:** Force the panel to be the default server block by editing its configuration:
+  `sudo nano /etc/nginx/sites-available/srvpanel.conf`
+  Change `listen 80;` to `listen 80 default_server;`
+  Then apply the change: `sudo systemctl restart nginx`
+
+### 2. Panel is inaccessible or returns "502 Bad Gateway"
+If Nginx is working but the panel isn't loading, the Node.js backend (`srvpanel.service`) might not be running.
+- **Fix:** Check the service status and start it if it is inactive:
+  `sudo systemctl status srvpanel`
+  `sudo systemctl start srvpanel`
+  *(Note: The `install.sh` script handles this automatically, but if it failed, you can start it manually).*
+
+### 3. I can access the panel on Port 8080, but not Port 80
+The panel's backend runs internally on port `8080`. For security, it binds strictly to localhost (`127.0.0.1`) in production, meaning Port `8080` is completely blocked from external access. You should always access the panel via Port `80` (or `443` if SSL is configured) so Nginx can securely proxy your traffic. If Port 80 isn't working, verify your Nginx syntax with `sudo nginx -t` and restart Nginx.
+
 ## ✨ Features
 
 - **Live Dashboard:** Real-time CPU and Memory monitoring.
