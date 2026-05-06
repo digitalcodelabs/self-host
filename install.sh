@@ -77,7 +77,7 @@ cd $PANEL_DIR/backend
 npm install
 
 echo "🔒 Generating secure configuration..."
-RANDOM_SECRET=$(openssl rand -hex 32)
+RANDOM_SECRET=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 64 | head -n 1)
 cat <<EOF > $PANEL_DIR/backend/.env
 JWT_SECRET=$RANDOM_SECRET
 EOF
