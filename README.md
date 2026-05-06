@@ -12,6 +12,8 @@ curl -sSL https://raw.githubusercontent.com/digitalcodelabs/self-host/main/insta
 
 *The script will automatically install Nginx, PHP-FPM, MariaDB, Redis, Memcached, Node.js, and set up a secure, unprivileged `srvpanel` user with fine-grained sudo permissions.*
 
+**Installation Path:** The entire panel (backend and frontend) will be installed and served from `/opt/srvpanel`.
+
 ## 💻 Local Development
 
 To run the panel locally for development, you will need two terminal windows.
