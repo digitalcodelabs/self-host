@@ -100,14 +100,14 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable srvpanel
+systemctl enable --now srvpanel
 
 # 8. Firewall & Nginx Panel Proxy
 echo "🌐 Configuring Nginx reverse proxy for panel..."
 # Note: In production, you would ask the user for a domain name and run certbot here.
 cat <<EOF > /etc/nginx/sites-available/srvpanel.conf
 server {
-    listen 80;
+    listen 80 default_server;
     server_name _; # Catch-all, access via IP for now
 
     location / {
@@ -124,8 +124,9 @@ EOF
 ln -sf /etc/nginx/sites-available/srvpanel.conf /etc/nginx/sites-enabled/
 # Remove default nginx welcome page
 rm -f /etc/nginx/sites-enabled/default
-systemctl reload nginx
+systemctl restart nginx
 
 echo "✅ Installation Complete!"
-echo "Navigate to http://\$(ip route get 1.1.1.1 | awk -F\"src \" 'NR==1{split(\$2,a,\" \");print a[1]}') to access your panel."
+SERVER_IP=$(ip route get 1.1.1.1 | awk -F"src " 'NR==1{split($2,a," ");print a[1]}')
+echo "Navigate to http://${SERVER_IP} to access your panel."
 echo "Powered by DigitalCodeLabs.dev"

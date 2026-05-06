@@ -314,4 +314,5 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
+const HOST = process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0';
+server.listen(PORT, HOST, () => console.log(`Backend running on ${HOST}:${PORT}`));
