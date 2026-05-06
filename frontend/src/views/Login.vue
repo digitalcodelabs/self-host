@@ -62,5 +62,10 @@ const login = async () => {
         </button>
       </form>
     </div>
+    <div class="fixed bottom-6 text-center w-full">
+      <p class="text-xs text-gray-500">
+        Powered by <a href="https://digitalcodelabs.dev" target="_blank" class="text-gray-400 hover:text-white transition-colors">DigitalCodeLabs.dev</a>
+      </p>
+    </div>
   </div>
 </template>
