@@ -76,6 +76,12 @@ echo "🛠️ Installing Backend Dependencies..."
 cd $PANEL_DIR/backend
 npm install
 
+echo "🔒 Generating secure configuration..."
+RANDOM_SECRET=$(openssl rand -hex 32)
+cat <<EOF > $PANEL_DIR/backend/.env
+JWT_SECRET=$RANDOM_SECRET
+EOF
+
 echo "🔑 Setting Permissions..."
 chown -R $PANEL_USER:$PANEL_USER $PANEL_DIR
 
