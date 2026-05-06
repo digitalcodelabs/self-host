@@ -5,7 +5,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const rateLimit = require('express-rate-limit');
+const { RateLimiterMemory } = require('rate-limiter-flexible');
 
 const db = require('./db');
 const { getSystemStats, getApps, getServices, pm2Action, systemctlAction } = require('./system');
@@ -40,13 +40,20 @@ const authenticateToken = (req, res, next) => {
 };
 
 // --- Public Routes ---
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 login requests per window
-  message: { error: 'Too many login attempts from this IP, please try again after 15 minutes' },
-  standardHeaders: true,
-  legacyHeaders: false,
+const rateLimiter = new RateLimiterMemory({
+  points: 10, // 10 login requests
+  duration: 15 * 60, // per 15 minutes by IP
 });
+
+const loginLimiter = (req, res, next) => {
+  rateLimiter.consume(req.ip)
+    .then(() => {
+      next();
+    })
+    .catch(() => {
+      res.status(429).json({ error: 'Too many login attempts from this IP, please try again after 15 minutes' });
+    });
+};
 
 app.post('/api/auth/login', loginLimiter, (req, res) => {
   const { username, password } = req.body;
