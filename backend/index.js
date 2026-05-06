@@ -5,6 +5,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
 
 const db = require('./db');
 const { getSystemStats, getApps, getServices, pm2Action, systemctlAction } = require('./system');
@@ -21,6 +22,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-panel-key';
 
+app.set('trust proxy', 1); // Trust the Nginx reverse proxy
 app.use(cors());
 app.use(express.json());
 
@@ -38,7 +40,15 @@ const authenticateToken = (req, res, next) => {
 };
 
 // --- Public Routes ---
-app.post('/api/auth/login', (req, res) => {
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 login requests per window
+  message: { error: 'Too many login attempts from this IP, please try again after 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.post('/api/auth/login', loginLimiter, (req, res) => {
   const { username, password } = req.body;
   db.get("SELECT * FROM users WHERE username = ?", [username], (err, user) => {
     if (err || !user) return res.status(401).json({ error: 'Invalid credentials' });
