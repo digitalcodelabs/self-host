@@ -16,11 +16,11 @@ const getSites = async () => {
 
 const createSite = async (domain, type, port, documentRoot, phpVersion, sudoPassword = null) => {
   if (!/^[a-zA-Z0-9.-]+$/.test(domain)) throw new Error('Invalid domain name');
-  if (type !== 'proxy' && type !== 'php') throw new Error('Invalid host type');
-  if (type === 'proxy' && !/^\d+$/.test(port)) throw new Error('Invalid port');
-  if (type === 'php') {
+  if (type !== 'proxy' && type !== 'php' && type !== 'nuxt') throw new Error('Invalid host type');
+  if ((type === 'proxy' || type === 'nuxt') && !/^\d+$/.test(port)) throw new Error('Invalid port');
+  if (type === 'php' || type === 'nuxt') {
     if (!/^\/[a-zA-Z0-9.\/-]+$/.test(documentRoot)) throw new Error('Invalid document root');
-    if (!/^\d+\.\d+$/.test(phpVersion)) throw new Error('Invalid PHP version');
+    if (type === 'php' && !/^\d+\.\d+$/.test(phpVersion)) throw new Error('Invalid PHP version');
   }
 
   let conf = '';
@@ -31,6 +31,27 @@ const createSite = async (domain, type, port, documentRoot, phpVersion, sudoPass
     server_name ${domain};
 
     location / {
+        proxy_pass http://127.0.0.1:${port};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}`;
+  } else if (type === 'nuxt') {
+    conf = `server {
+    listen 80;
+    server_name ${domain};
+    root ${documentRoot};
+
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ @proxy;
+    }
+
+    location @proxy {
         proxy_pass http://127.0.0.1:${port};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;

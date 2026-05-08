@@ -8,7 +8,7 @@ const bcrypt = require('bcryptjs');
 const { RateLimiterMemory } = require('rate-limiter-flexible');
 
 const db = require('./db');
-const { getSystemStats, getApps, getServices, pm2Action, systemctlAction } = require('./system');
+const { getSystemStats, getApps, getServices, pm2Action, systemctlAction, getSshPublicKey, generateSshKey } = require('./system');
 const { execSudo } = require('./shellService');
 const { getSites, createSite, issueSsl } = require('./nginx');
 const { getCronJobs, addCronJob } = require('./cron');
@@ -122,6 +122,25 @@ app.get('/api/system/services', authenticateToken, async (req, res) => {
   }
 });
 
+// --- SSH Key Management ---
+app.get('/api/system/ssh-key', authenticateToken, async (req, res) => {
+  try {
+    const key = await getSshPublicKey();
+    res.json({ publicKey: key });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/system/ssh-key', authenticateToken, async (req, res) => {
+  try {
+    const key = await generateSshKey();
+    res.json({ publicKey: key });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/system/services/action', authenticateToken, async (req, res) => {
   try {
     const { serviceName, action, sudoPassword } = req.body;
@@ -203,9 +222,9 @@ app.post('/api/cron', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/deploy', authenticateToken, async (req, res) => {
-  const { repoUrl, branch, appName, domain, port, deployDir, sudoPassword } = req.body;
+  const { repoUrl, branch, appName, domain, port, deployDir, sudoPassword, appType } = req.body;
   try {
-    await deployApp(io, repoUrl, port, appName, branch, deployDir, sudoPassword, domain);
+    await deployApp(io, repoUrl, port, appName, branch, deployDir, sudoPassword, domain, appType);
     res.json({ success: true, message: 'Deployment started' });
   } catch (error) {
     console.error('[Deploy API Error]', error);
@@ -326,7 +345,7 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log('Admin connected via WebSocket:', socket.id);
   socket.on('deploy', async (data) => {
-    await deployApp(io, data.repo, data.port, data.name);
+    await deployApp(io, data.repo, data.port, data.name, '', '/var/www', null, null, data.appType);
   });
 });
 

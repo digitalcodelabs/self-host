@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const fs = require('fs/promises');
 const { createSite } = require('./nginx');
 
-const deployApp = async (io, repoUrl, port, appName, branch = '', baseDeployDir = '/var/www', sudoPassword = null, domain = null) => {
+const deployApp = async (io, repoUrl, port, appName, branch = '', baseDeployDir = '/var/www', sudoPassword = null, domain = null, appType = 'node') => {
   const log = (msg) => io.emit('deploy-log', `${msg}\n`);
   
   if (!/^[a-zA-Z0-9-]+$/.test(appName)) {
@@ -17,7 +17,7 @@ const deployApp = async (io, repoUrl, port, appName, branch = '', baseDeployDir 
     return;
   }
 
-  if (!/^[a-zA-Z0-9.\-_:/@]+$/.test(repoUrl)) {
+  if (repoUrl && repoUrl !== 'existing' && !/^[a-zA-Z0-9.\-_:/@\/]+$/.test(repoUrl)) {
     log(`[ERROR] Invalid repository URL format.`);
     io.emit('deploy-end');
     return;
@@ -42,13 +42,20 @@ set -e
 echo "> Setting up deployment directory..."
 cd ${deployDir}
 
-if [ -d ".git" ]; then
-  echo "> Pulling latest changes..."
-  git fetch origin
-  ${branch ? `git checkout ${branch}\n  git pull origin ${branch}` : `git pull`}
+if [ "${repoUrl}" != "existing" ]; then
+  if [ -d ".git" ]; then
+    echo "> Pulling latest changes..."
+    git fetch origin
+    ${branch ? `git checkout ${branch}\n  git pull origin ${branch}` : `git pull`}
+  elif [ -n "${repoUrl}" ]; then
+    echo "> Cloning repository ${repoUrl} ${branch ? `(branch: ${branch})` : '(default branch)'}..."
+    ${branch ? `git clone -b ${branch} ${repoUrl} .` : `git clone ${repoUrl} .`}
+  else
+    echo "> [ERROR] No repository URL provided and no existing .git directory found."
+    exit 1
+  fi
 else
-  echo "> Cloning repository ${repoUrl} ${branch ? `(branch: ${branch})` : '(default branch)'}..."
-  ${branch ? `git clone -b ${branch} ${repoUrl} .` : `git clone ${repoUrl} .`}
+  echo "> Skipping Git operations (Existing directory deployment)."
 fi
 
 echo "> Installing Node.js dependencies..."
@@ -90,7 +97,9 @@ echo "> [SUCCESS] Node.js deployment completed successfully!"
     if (domain) {
       log(`> Attaching Nginx Virtual Host for ${domain} on port ${port}...`);
       try {
-        const result = await createSite(domain, 'proxy', port, null, null, sudoPassword);
+        const nginxType = appType === 'nuxt' ? 'nuxt' : 'proxy';
+        const docRoot = appType === 'nuxt' ? `${deployDir}/public` : null;
+        const result = await createSite(domain, nginxType, port, docRoot, null, sudoPassword);
         log(`> [NGINX] ${result.message}`);
       } catch (err) {
         log(`[ERROR] Failed to attach domain: ${err.message}`);

@@ -124,4 +124,41 @@ const systemctlAction = async (serviceName, action, sudoPassword = null) => {
   await execSudo(`systemctl ${action} ${serviceName}`, sudoPassword);
 };
 
-module.exports = { getSystemStats, getApps, getServices, pm2Action, getAppLogs, systemctlAction };
+const fs = require('fs/promises');
+const path = require('path');
+
+const getSshPublicKey = async () => {
+  const keyPaths = [
+    path.join(os.homedir(), '.ssh/id_ed25519.pub'),
+    path.join(os.homedir(), '.ssh/id_rsa.pub')
+  ];
+  
+  for (const keyPath of keyPaths) {
+    try {
+      return await fs.readFile(keyPath, 'utf8');
+    } catch (e) {
+      // Continue to next path
+    }
+  }
+  return null;
+};
+
+const generateSshKey = async () => {
+  const sshDir = path.join(os.homedir(), '.ssh');
+  try {
+    await fs.mkdir(sshDir, { recursive: true });
+    await fs.chmod(sshDir, 0o700);
+  } catch (e) {}
+  
+  const keyPath = path.join(sshDir, 'id_ed25519');
+  const { exec } = require('child_process');
+  
+  return new Promise((resolve, reject) => {
+    exec(`ssh-keygen -t ed25519 -N "" -f "${keyPath}"`, (err) => {
+      if (err) return reject(err);
+      fs.readFile(`${keyPath}.pub`, 'utf8').then(resolve).catch(reject);
+    });
+  });
+};
+
+module.exports = { getSystemStats, getApps, getServices, pm2Action, getAppLogs, systemctlAction, getSshPublicKey, generateSshKey };
