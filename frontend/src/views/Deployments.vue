@@ -88,6 +88,12 @@ const startDeployment = async (sudoPwd = null) => {
   const token = localStorage.getItem('token')
 
   const socket = io('/', { auth: { token } })
+  
+  await new Promise((resolve) => {
+    socket.on('connect', resolve)
+    setTimeout(resolve, 1000) // Fallback timeout
+  })
+
   socket.on('deploy-log', (msg) => {
     // Only push if we haven't seen it, though logs is empty initially
     logs.value.push(msg)

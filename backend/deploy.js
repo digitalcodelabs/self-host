@@ -46,6 +46,8 @@ set -e
 echo "> Setting up deployment directory..."
 cd ${deployDir}
 
+export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+
 if [ "${repoUrl}" != "existing" ]; then
   if [ -d ".git" ]; then
     echo "> Pulling latest changes..."
