@@ -90,8 +90,13 @@ app.post('/api/auth/change-password', authenticateToken, (req, res) => {
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
 // --- Protected Routes ---
-app.get('/api/system/stats', authenticateToken, (req, res) => {
-  res.json(getSystemStats());
+app.get('/api/system/stats', authenticateToken, async (req, res) => {
+  try {
+    const stats = await getSystemStats();
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/api/system/apps', authenticateToken, async (req, res) => {

@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import SudoPrompt from '../components/SudoPrompt.vue'
 
-const stats = ref({ cpuLoad: '0', memory: { percent: 0, used: '0', total: '0' } })
+const stats = ref({ cpuLoad: '0', memory: { percent: 0, used: '0', total: '0' }, disk: { percent: 0, used: '0', total: '0' } })
 const cpuHistory = ref(Array(20).fill(0))
 const apps = ref([])
 const services = ref([])
@@ -245,7 +245,7 @@ const refreshLogs = async () => {
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <div class="bg-gray-950 border border-gray-800 rounded-xl p-6 shadow-sm relative overflow-hidden flex flex-col justify-between">
         <div class="relative z-10">
           <h3 class="text-gray-400 text-sm font-medium">CPU Usage</h3>
@@ -269,6 +269,13 @@ const refreshLogs = async () => {
         <p class="text-3xl font-bold text-white mt-1">{{ stats.memory.used }} GB <span class="text-sm text-gray-500 font-normal">/ {{ stats.memory.total }} GB</span></p>
         <div class="w-full bg-gray-800 h-1.5 mt-4 rounded-full overflow-hidden">
           <div class="bg-white h-full rounded-full transition-all duration-500" :style="{ width: stats.memory.percent + '%' }"></div>
+        </div>
+      </div>
+      <div class="bg-gray-950 border border-gray-800 rounded-xl p-6 shadow-sm">
+        <h3 class="text-gray-400 text-sm font-medium">Disk Space</h3>
+        <p class="text-3xl font-bold text-white mt-1">{{ stats.disk.used }} GB <span class="text-sm text-gray-500 font-normal">/ {{ stats.disk.total }} GB</span></p>
+        <div class="w-full bg-gray-800 h-1.5 mt-4 rounded-full overflow-hidden">
+          <div :class="['h-full rounded-full transition-all duration-500', stats.disk.percent > 90 ? 'bg-red-500' : 'bg-white']" :style="{ width: stats.disk.percent + '%' }"></div>
         </div>
       </div>
       <div class="bg-gray-950 border border-gray-800 rounded-xl p-6 shadow-sm">

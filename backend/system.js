@@ -1,11 +1,31 @@
 const os = require('os');
 const pm2 = require('pm2');
 
-const getSystemStats = () => {
+const getSystemStats = async () => {
   const totalMem = os.totalmem();
   const freeMem = os.freemem();
   const usedMem = totalMem - freeMem;
   const loadAvg = os.loadavg();
+
+  // Get disk space for the root partition
+  const disk = await new Promise((resolve) => {
+    require('child_process').exec('df -B1 /', (error, stdout) => {
+      if (error) return resolve({ total: '0.00', used: '0.00', percent: 0 });
+      const lines = stdout.trim().split('\n');
+      if (lines.length > 1) {
+        const parts = lines[1].trim().split(/\s+/);
+        const total = parseInt(parts[1], 10);
+        const used = parseInt(parts[2], 10);
+        resolve({
+          total: (total / 1024 / 1024 / 1024).toFixed(2),
+          used: (used / 1024 / 1024 / 1024).toFixed(2),
+          percent: Math.round((used / total) * 100)
+        });
+      } else {
+        resolve({ total: '0.00', used: '0.00', percent: 0 });
+      }
+    });
+  });
 
   return {
     cpuLoad: (loadAvg[0] * 100 / os.cpus().length).toFixed(1), // 1 min load relative to core count
@@ -13,7 +33,8 @@ const getSystemStats = () => {
       total: (totalMem / 1024 / 1024 / 1024).toFixed(2),
       used: (usedMem / 1024 / 1024 / 1024).toFixed(2),
       percent: Math.round((usedMem / totalMem) * 100)
-    }
+    },
+    disk
   };
 };
 
