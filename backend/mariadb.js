@@ -14,7 +14,7 @@ const execMysql = (query, sudoPassword) => {
       });
     } else {
       // Fallback to sudo mysql
-      execSudo(`mysql -Bse "${query}"`, sudoPassword).then(resolve).catch(reject);
+      execSudo(`/usr/bin/mysql -Bse "${query}"`, sudoPassword).then(resolve).catch(reject);
     }
   });
 };
@@ -57,7 +57,7 @@ const deleteUser = async (username, host, sudoPassword) => {
 };
 
 const restartMariaDb = async (sudoPassword) => {
-  await execSudo(`systemctl restart mariadb`, sudoPassword);
+  await execSudo(`/bin/systemctl restart mariadb`, sudoPassword);
 };
 
 module.exports = { getDatabases, createDatabase, createUser, getUsers, deleteUser, restartMariaDb };

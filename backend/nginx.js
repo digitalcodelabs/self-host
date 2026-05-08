@@ -98,10 +98,10 @@ const createSite = async (domain, type, port, documentRoot, phpVersion, sudoPass
   
   try {
     // In production, these commands would be in the sudoers file
-    await execSudo(`mv ${tmpPath} ${NGINX_DIR}/${domain}.conf`, sudoPassword);
-    await execSudo(`ln -sf ${NGINX_DIR}/${domain}.conf ${NGINX_ENABLED}/`, sudoPassword);
-    await execSudo('nginx -t', sudoPassword);
-    await execSudo('systemctl reload nginx', sudoPassword);
+    await execSudo(`/bin/mv ${tmpPath} ${NGINX_DIR}/${domain}.conf`, sudoPassword);
+    await execSudo(`/bin/ln -sf ${NGINX_DIR}/${domain}.conf ${NGINX_ENABLED}/`, sudoPassword);
+    await execSudo(`/usr/sbin/nginx -t`, sudoPassword);
+    await execSudo(`/bin/systemctl reload nginx`, sudoPassword);
     return { success: true, message: 'Virtual host created and Nginx reloaded.' };
   } catch (err) {
     if (err.message === 'SUDO_REQUIRED' || err.message === 'SUDO_INVALID') throw err;
@@ -113,7 +113,7 @@ const createSite = async (domain, type, port, documentRoot, phpVersion, sudoPass
 const issueSsl = async (domain, sudoPassword = null) => {
   if (!/^[a-zA-Z0-9.-]+$/.test(domain)) throw new Error('Invalid domain name');
   try {
-    await execSudo(`certbot --nginx -d ${domain} --non-interactive --agree-tos --register-unsafely-without-email`, sudoPassword);
+    await execSudo(`/usr/bin/certbot --nginx -d ${domain} --non-interactive --agree-tos --register-unsafely-without-email`, sudoPassword);
     return { success: true, message: 'SSL Certificate issued successfully.' };
   } catch (err) {
     if (err.message === 'SUDO_REQUIRED' || err.message === 'SUDO_INVALID') throw err;

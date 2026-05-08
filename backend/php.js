@@ -33,7 +33,7 @@ const getPhpVersions = async () => {
 const restartPhpFpm = async (version) => {
   if (!/^\d+\.\d+$/.test(version)) throw new Error('Invalid PHP version format');
   try {
-    const { stdout, stderr } = await execSudo(`systemctl restart php${version}-fpm`);
+    const { stdout, stderr } = await execSudo(`/bin/systemctl restart php${version}-fpm`);
     return { success: true, stdout, stderr };
   } catch (error) {
     throw new Error(`Failed to restart PHP ${version} FPM: ${error.message}`);

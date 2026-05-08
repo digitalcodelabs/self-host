@@ -122,7 +122,7 @@ const systemctlAction = async (serviceName, action, sudoPassword = null) => {
   if (!['start', 'stop', 'restart', 'reload'].includes(action)) {
     throw new Error('Action not allowed');
   }
-  await execSudo(`systemctl ${action} ${serviceName}`, sudoPassword);
+  await execSudo(`/bin/systemctl ${action} ${serviceName}`, sudoPassword);
 };
 
 const fs = require('fs/promises');
