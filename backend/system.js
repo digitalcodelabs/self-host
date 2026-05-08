@@ -78,6 +78,7 @@ const pm2Action = (appName, action) => {
       if (action === 'restart') pm2.restart(appName, cb);
       else if (action === 'stop') pm2.stop(appName, cb);
       else if (action === 'start') pm2.start(appName, cb);
+      else if (action === 'delete') pm2.delete(appName, cb);
       else {
         pm2.disconnect();
         reject(new Error('Invalid action'));

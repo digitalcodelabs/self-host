@@ -16,7 +16,7 @@ const logs = ref([])
 const isDeploying = ref(false)
 const showSudoPrompt = ref(false)
 const sudoError = ref('')
-const currentSudoPassword = ref(null)
+const currentSudoPassword = ref('')
 
 const handleSudoSubmit = (pwd) => {
   startDeployment(pwd)
@@ -87,6 +87,16 @@ const startDeployment = async (sudoPwd = null) => {
   
   const token = localStorage.getItem('token')
 
+  const socket = io('/', { auth: { token } })
+  socket.on('deploy-log', (msg) => {
+    // Only push if we haven't seen it, though logs is empty initially
+    logs.value.push(msg)
+  })
+  socket.on('deploy-end', () => {
+    isDeploying.value = false
+    socket.disconnect()
+  })
+
   try {
     const res = await fetch('/api/deploy', {
       method: 'POST',
@@ -112,6 +122,7 @@ const startDeployment = async (sudoPwd = null) => {
     if (res.status === 403 && data.error === 'SUDO_REQUIRED') {
       showSudoPrompt.value = true
       isDeploying.value = false
+      socket.disconnect()
       return
     }
     
@@ -120,6 +131,7 @@ const startDeployment = async (sudoPwd = null) => {
       showSudoPrompt.value = true
       isDeploying.value = false
       currentSudoPassword.value = null
+      socket.disconnect()
       return
     }
 
@@ -128,19 +140,14 @@ const startDeployment = async (sudoPwd = null) => {
     if (!res.ok) {
       logs.value.push(`Error: ${data.error || 'Could not start deployment.'}`)
       isDeploying.value = false
+      socket.disconnect()
       return
     }
-
-    const socket = io('/', { auth: { token } })
-    socket.on('deploy-log', (msg) => logs.value.push(msg))
-    socket.on('deploy-end', () => {
-      isDeploying.value = false
-      socket.disconnect()
-    })
 
   } catch (error) {
     logs.value.push(`Error: ${error.message}`)
     isDeploying.value = false
+    socket.disconnect()
   }
 }
 </script>
@@ -167,7 +174,7 @@ const startDeployment = async (sudoPwd = null) => {
         <form @submit.prevent="startDeployment" class="p-6 space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-300 mb-1">App Name</label>
-            <input v-model="appName" type="text" placeholder="my-node-app" class="w-full bg-gray-950 border border-gray-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-shadow" required pattern="[a-zA-Z0-9-]+" title="Only alphanumeric characters and hyphens allowed" />
+            <input v-model="appName" type="text" placeholder="my-node-app" class="w-full bg-gray-950 border border-gray-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-shadow" required pattern="[a-zA-Z0-9-_\.]+" title="Only alphanumeric characters, hyphens, underscores, and dots allowed" />
           </div>
 
           <div>

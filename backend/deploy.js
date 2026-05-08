@@ -2,40 +2,44 @@ const { spawn } = require('child_process');
 const fs = require('fs/promises');
 const { createSite } = require('./nginx');
 
+const activeDeploys = new Set();
+
 const deployApp = async (io, repoUrl, port, appName, branch = '', baseDeployDir = '/var/www', sudoPassword = null, domain = null, appType = 'node', useLegacyPeerDeps = false) => {
   const log = (msg) => io.emit('deploy-log', `${msg}\n`);
-  
-  if (!/^[a-zA-Z0-9-]+$/.test(appName)) {
-    log(`[ERROR] Invalid app name. Use alphanumeric characters and hyphens only.`);
+
+  if (activeDeploys.has(appName)) {
+    log(`[ERROR] A deployment for ${appName} is already in progress. Please wait.`);
     io.emit('deploy-end');
     return;
+  }
+
+  activeDeploys.add(appName);
+  
+  try {
+  if (!/^[a-zA-Z0-9-_\.]+$/.test(appName)) {
+    throw new Error('Invalid app name. Use alphanumeric characters, hyphens, underscores, and dots only.');
   }
 
   if (!/^\/[a-zA-Z0-9.\/-]+$/.test(baseDeployDir)) {
-    log(`[ERROR] Invalid base directory. Must be an absolute Linux path.`);
-    io.emit('deploy-end');
-    return;
+    throw new Error('Invalid base directory. Must be an absolute Linux path.');
   }
 
   if (repoUrl && repoUrl !== 'existing' && !/^[a-zA-Z0-9.\-_:/@\/]+$/.test(repoUrl)) {
-    log(`[ERROR] Invalid repository URL format.`);
-    io.emit('deploy-end');
-    return;
+    throw new Error('Invalid repository URL format.');
   }
 
   if (branch && !/^[a-zA-Z0-9.\-_/]+$/.test(branch)) {
-    log(`[ERROR] Invalid branch name format.`);
-    io.emit('deploy-end');
-    return;
+    throw new Error('Invalid branch name format.');
   }
   
   const deployDir = `${baseDeployDir.replace(/\/$/, '')}/${appName}`;
   
+  log(`[${new Date().toISOString()}] Started ${appType} deployment for ${appName}`);
+
   // Setup permissions before starting
+  log(`> Preparing deployment directory ${deployDir}...`);
   await require('./shellService').execSudo(`/usr/bin/mkdir -p ${deployDir}`, sudoPassword);
   await require('./shellService').execSudo(`/usr/bin/chown -R $USER:$USER ${deployDir}`, sudoPassword);
-  
-  log(`[${new Date().toISOString()}] Started Node.js deployment for ${appName}`);
   
   const script = `#!/bin/bash
 set -e
@@ -102,6 +106,7 @@ echo "> [SUCCESS] Deployment completed successfully!"
   child.stderr.on('data', (data) => log(`[STDERR] ${data.toString()}`));
   
   child.on('close', async (code) => {
+    activeDeploys.delete(appName);
     await fs.unlink(scriptPath).catch(() => {});
     
     if (code !== 0) {
@@ -124,6 +129,10 @@ echo "> [SUCCESS] Deployment completed successfully!"
     
     io.emit('deploy-end');
   });
+  } catch (error) {
+    activeDeploys.delete(appName);
+    throw error;
+  }
 };
 
 module.exports = { deployApp };

@@ -345,7 +345,24 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log('Admin connected via WebSocket:', socket.id);
   socket.on('deploy', async (data) => {
-    await deployApp(io, data.repo, data.port, data.name, '', '/var/www', null, null, data.appType, data.useLegacyPeerDeps);
+    try {
+      await deployApp(
+        io, 
+        data.repoUrl || data.repo, 
+        data.port, 
+        data.appName || data.name, 
+        data.branch || '', 
+        data.deployDir || '/var/www', 
+        data.sudoPassword || null, 
+        data.domain || null, 
+        data.appType || 'node', 
+        data.useLegacyPeerDeps || false
+      );
+    } catch (error) {
+      console.error('[Socket Deploy Error]', error);
+      socket.emit('deploy-log', `[ERROR] ${error.message}`);
+      socket.emit('deploy-end');
+    }
   });
 });
 
