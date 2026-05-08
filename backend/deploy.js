@@ -66,7 +66,11 @@ fi
 
 echo "> Installing Node.js dependencies..."
 export PATH=$PATH:$(pwd)/node_modules/.bin
-npm install ${useLegacyPeerDeps ? '--legacy-peer-deps' : ''} --ignore-scripts
+# Temporarily unset NODE_ENV to ensure devDependencies (like nuxt) are installed
+OLD_NODE_ENV=$NODE_ENV
+export NODE_ENV=development
+npm install ${useLegacyPeerDeps ? '--legacy-peer-deps' : ''} --ignore-scripts --include=dev
+export NODE_ENV=$OLD_NODE_ENV
 
 if [ "${appType}" == "nuxt" ]; then
   echo "> Nuxt project detected, running 'npx nuxt prepare' manually..."
