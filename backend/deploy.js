@@ -60,7 +60,12 @@ fi
 
 echo "> Installing Node.js dependencies..."
 export PATH=$PATH:$(pwd)/node_modules/.bin
-npm install ${useLegacyPeerDeps ? '--legacy-peer-deps' : ''}
+npm install ${useLegacyPeerDeps ? '--legacy-peer-deps' : ''} --ignore-scripts
+
+if [ "${appType}" == "nuxt" ]; then
+  echo "> Nuxt project detected, running 'npx nuxt prepare' manually..."
+  npx nuxt prepare
+fi
 
 if grep -q '"build":' package.json; then
   echo "> Running build script..."
