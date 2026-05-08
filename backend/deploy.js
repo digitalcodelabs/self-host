@@ -59,21 +59,32 @@ else
 fi
 
 echo "> Installing Node.js dependencies..."
+export PATH=$PATH:$(pwd)/node_modules/.bin
 npm install ${useLegacyPeerDeps ? '--legacy-peer-deps' : ''}
 
 if grep -q '"build":' package.json; then
   echo "> Running build script..."
   npm run build
+elif [ "${appType}" == "nuxt" ]; then
+  echo "> Running 'npx nuxt build'..."
+  npx nuxt build
 else
   echo "> No build script found, skipping."
 fi
 
 echo "> Starting application via PM2 on port ${port}..."
 export PORT=${port}
-pm2 start npm --name "${appName}" -- start || pm2 restart "${appName}"
+
+if [ "${appType}" == "nuxt" ] && [ -f ".output/server/index.mjs" ]; then
+  echo "> Nuxt 3 output detected, starting from .output/server/index.mjs"
+  pm2 start .output/server/index.mjs --name "${appName}" --interpreter node || pm2 restart "${appName}"
+else
+  pm2 start npm --name "${appName}" -- start || pm2 restart "${appName}"
+fi
+
 pm2 save
 
-echo "> [SUCCESS] Node.js deployment completed successfully!"
+echo "> [SUCCESS] Deployment completed successfully!"
 `;
 
   const scriptPath = `/tmp/deploy_${appName}_${Date.now()}.sh`;
