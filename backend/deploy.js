@@ -32,8 +32,8 @@ const deployApp = async (io, repoUrl, port, appName, branch = '', baseDeployDir 
   const deployDir = `${baseDeployDir.replace(/\/$/, '')}/${appName}`;
   
   // Setup permissions before starting
-  await require('./shellService').execSudo(`mkdir -p ${deployDir}`, sudoPassword);
-  await require('./shellService').execSudo(`chown -R $USER:$USER ${deployDir}`, sudoPassword);
+  await require('./shellService').execSudo(`/usr/bin/mkdir -p ${deployDir}`, sudoPassword);
+  await require('./shellService').execSudo(`/usr/bin/chown -R $USER:$USER ${deployDir}`, sudoPassword);
   
   log(`[${new Date().toISOString()}] Started Node.js deployment for ${appName}`);
   

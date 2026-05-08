@@ -59,6 +59,8 @@ $PANEL_USER ALL=(ALL) NOPASSWD: /bin/ln -s /etc/nginx/sites-available/* /etc/ngi
 $PANEL_USER ALL=(ALL) NOPASSWD: /bin/rm /etc/nginx/sites-available/*
 $PANEL_USER ALL=(ALL) NOPASSWD: /bin/rm /etc/nginx/sites-enabled/*
 $PANEL_USER ALL=(ALL) NOPASSWD: /usr/bin/certbot
+$PANEL_USER ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /var/www/*
+$PANEL_USER ALL=(ALL) NOPASSWD: /usr/bin/chown -R * /var/www/*
 EOF
 chmod 0440 /etc/sudoers.d/$PANEL_USER
 
