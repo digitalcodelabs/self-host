@@ -51,9 +51,30 @@ const generateSshKey = async () => {
 import { onMounted } from 'vue'
 onMounted(fetchSshKey)
 
-const copyToClipboard = (text) => {
-  navigator.clipboard.writeText(text)
-  alert('Copied to clipboard!')
+const copyToClipboard = async (text) => {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    alert('Copied to clipboard!');
+  } catch (err) {
+    // Fallback for non-secure contexts
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      alert('Copied to clipboard!');
+    } catch (copyErr) {
+      console.error('Fallback copy failed', copyErr);
+      alert('Failed to copy. Please copy manually.');
+    }
+    document.body.removeChild(textArea);
+  }
 }
 
 const startDeployment = async (sudoPwd = null) => {
