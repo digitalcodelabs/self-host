@@ -41,6 +41,9 @@ if ! id "$PANEL_USER" &>/dev/null; then
     useradd -r -d $PANEL_DIR -s /bin/bash $PANEL_USER
 fi
 
+echo "⚙️ Configuring PM2 as a standalone system service..."
+env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u $PANEL_USER --hp $PANEL_DIR
+
 # 5. Setup Secure Sudoers Rules for the Panel User
 # This allows the panel to manage Nginx, PM2, and systemctl securely without full root access
 echo "🔒 Configuring sudoers permissions..."

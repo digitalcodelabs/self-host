@@ -255,14 +255,14 @@ const startDeployment = async (sudoPwd = null) => {
       </div>
     </div>
 
-      <div class="lg:col-span-2 bg-black border border-gray-800 rounded-xl overflow-hidden shadow-sm flex flex-col h-[500px]">
+      <div class="lg:col-span-2 bg-black border border-gray-800 rounded-xl overflow-hidden shadow-sm flex flex-col h-full min-h-[600px]">
         <div class="px-4 py-2 bg-gray-900/50 flex items-center space-x-2 border-b border-gray-800">
           <div class="w-3 h-3 rounded-full bg-red-500"></div>
           <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
           <div class="w-3 h-3 rounded-full bg-green-500"></div>
           <span class="text-gray-500 text-xs ml-2">deployment log</span>
         </div>
-        <div class="p-4 flex-1 overflow-y-auto text-sm text-green-400 bg-black">
+        <div class="p-4 flex-1 overflow-y-auto text-sm text-green-400 bg-black custom-scrollbar">
           <div v-if="logs.length === 0" class="text-gray-600">Waiting for deployment to start...</div>
           <div v-for="(log, idx) in logs" :key="idx" class="whitespace-pre-wrap">{{ log }}</div>
         </div>
@@ -270,3 +270,21 @@ const startDeployment = async (sudoPwd = null) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 14px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #000;
+  border-radius: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #333;
+  border: 4px solid #000;
+  border-radius: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+</style>
