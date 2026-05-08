@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const fs = require('fs/promises');
 const { createSite } = require('./nginx');
 
-const deployApp = async (io, repoUrl, port, appName, branch = '', baseDeployDir = '/var/www', sudoPassword = null, domain = null, appType = 'node') => {
+const deployApp = async (io, repoUrl, port, appName, branch = '', baseDeployDir = '/var/www', sudoPassword = null, domain = null, appType = 'node', useLegacyPeerDeps = false) => {
   const log = (msg) => io.emit('deploy-log', `${msg}\n`);
   
   if (!/^[a-zA-Z0-9-]+$/.test(appName)) {
@@ -59,7 +59,7 @@ else
 fi
 
 echo "> Installing Node.js dependencies..."
-npm install
+npm install ${useLegacyPeerDeps ? '--legacy-peer-deps' : ''}
 
 if grep -q '"build":' package.json; then
   echo "> Running build script..."

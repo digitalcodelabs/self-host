@@ -222,9 +222,9 @@ app.post('/api/cron', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/deploy', authenticateToken, async (req, res) => {
-  const { repoUrl, branch, appName, domain, port, deployDir, sudoPassword, appType } = req.body;
+  const { repoUrl, branch, appName, domain, port, deployDir, sudoPassword, appType, useLegacyPeerDeps } = req.body;
   try {
-    await deployApp(io, repoUrl, port, appName, branch, deployDir, sudoPassword, domain, appType);
+    await deployApp(io, repoUrl, port, appName, branch, deployDir, sudoPassword, domain, appType, useLegacyPeerDeps);
     res.json({ success: true, message: 'Deployment started' });
   } catch (error) {
     console.error('[Deploy API Error]', error);
@@ -345,7 +345,7 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log('Admin connected via WebSocket:', socket.id);
   socket.on('deploy', async (data) => {
-    await deployApp(io, data.repo, data.port, data.name, '', '/var/www', null, null, data.appType);
+    await deployApp(io, data.repo, data.port, data.name, '', '/var/www', null, null, data.appType, data.useLegacyPeerDeps);
   });
 });
 

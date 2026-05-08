@@ -11,6 +11,7 @@ const port = ref('3000')
 const deployDir = ref('/var/www')
 const appType = ref('node')
 const isExisting = ref(false)
+const useLegacyPeerDeps = ref(false)
 const logs = ref([])
 const isDeploying = ref(false)
 const showSudoPrompt = ref(false)
@@ -101,6 +102,7 @@ const startDeployment = async (sudoPwd = null) => {
         port: port.value,
         deployDir: deployDir.value,
         appType: appType.value,
+        useLegacyPeerDeps: useLegacyPeerDeps.value,
         sudoPassword: currentSudoPassword.value
       })
     })
@@ -185,6 +187,11 @@ const startDeployment = async (sudoPwd = null) => {
           <div class="flex items-center space-x-2 py-2">
             <input v-model="isExisting" type="checkbox" id="isExisting" class="w-4 h-4 rounded border-gray-800 bg-gray-950 text-white focus:ring-0" />
             <label for="isExisting" class="text-sm font-medium text-gray-300 cursor-pointer">Existing Project (Skip Git)</label>
+          </div>
+
+          <div class="flex items-center space-x-2 pb-2">
+            <input v-model="useLegacyPeerDeps" type="checkbox" id="useLegacyPeerDeps" class="w-4 h-4 rounded border-gray-800 bg-gray-950 text-white focus:ring-0" />
+            <label for="useLegacyPeerDeps" class="text-sm font-medium text-gray-300 cursor-pointer text-yellow-500/80">Use Legacy Peer Deps (Fixes ERESOLVE)</label>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
