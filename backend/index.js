@@ -8,7 +8,7 @@ const bcrypt = require('bcryptjs');
 const { RateLimiterMemory } = require('rate-limiter-flexible');
 
 const db = require('./db');
-const { getSystemStats, getApps, getServices, pm2Action, systemctlAction, getSshPublicKey, generateSshKey } = require('./system');
+const { getSystemStats, getApps, getServices, pm2Action, systemctlAction, getSshKeys, generateSshKey } = require('./system');
 const { execSudo } = require('./shellService');
 const { getSites, createSite, issueSsl } = require('./nginx');
 const { getCronJobs, addCronJob } = require('./cron');
@@ -130,8 +130,8 @@ app.get('/api/system/services', authenticateToken, async (req, res) => {
 // --- SSH Key Management ---
 app.get('/api/system/ssh-key', authenticateToken, async (req, res) => {
   try {
-    const key = await getSshPublicKey();
-    res.json({ publicKey: key });
+    const keys = await getSshKeys();
+    res.json({ keys });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -139,8 +139,9 @@ app.get('/api/system/ssh-key', authenticateToken, async (req, res) => {
 
 app.post('/api/system/ssh-key', authenticateToken, async (req, res) => {
   try {
-    const key = await generateSshKey();
-    res.json({ publicKey: key });
+    const { keyName } = req.body;
+    const key = await generateSshKey(keyName || 'id_ed25519');
+    res.json(key); // { filename, publicKey }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -227,9 +228,9 @@ app.post('/api/cron', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/deploy', authenticateToken, async (req, res) => {
-  const { repoUrl, branch, appName, domain, port, deployDir, sudoPassword, appType, useLegacyPeerDeps } = req.body;
+  const { repoUrl, branch, appName, domain, port, deployDir, sudoPassword, appType, useLegacyPeerDeps, sshKey } = req.body;
   try {
-    await deployApp(io, repoUrl, port, appName, branch, deployDir, sudoPassword, domain, appType, useLegacyPeerDeps);
+    await deployApp(io, repoUrl, port, appName, branch, deployDir, sudoPassword, domain, appType, useLegacyPeerDeps, sshKey);
     res.json({ success: true, message: 'Deployment started' });
   } catch (error) {
     console.error('[Deploy API Error]', error);
@@ -361,7 +362,8 @@ io.on('connection', (socket) => {
         data.sudoPassword || null, 
         data.domain || null, 
         data.appType || 'node', 
-        data.useLegacyPeerDeps || false
+        data.useLegacyPeerDeps || false,
+        data.sshKey || null
       );
     } catch (error) {
       console.error('[Socket Deploy Error]', error);

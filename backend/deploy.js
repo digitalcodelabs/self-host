@@ -4,7 +4,7 @@ const { createSite } = require('./nginx');
 
 const activeDeploys = new Set();
 
-const deployApp = async (io, repoUrl, port, appName, branch = '', baseDeployDir = '/var/www', sudoPassword = null, domain = null, appType = 'node', useLegacyPeerDeps = false) => {
+const deployApp = async (io, repoUrl, port, appName, branch = '', baseDeployDir = '/var/www', sudoPassword = null, domain = null, appType = 'node', useLegacyPeerDeps = false, sshKey = null) => {
   const log = (msg) => io.emit('deploy-log', `${msg}\n`);
 
   if (activeDeploys.has(appName)) {
@@ -46,7 +46,7 @@ set -e
 echo "> Setting up deployment directory..."
 cd ${deployDir}
 
-export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+export GIT_SSH_COMMAND="ssh ${sshKey ? `-i ~/.ssh/${sshKey}` : ''} -o StrictHostKeyChecking=accept-new"
 
 if [ "${repoUrl}" != "existing" ]; then
   if [ -d ".git" ]; then
