@@ -48,7 +48,7 @@ const createSite = async (domain, type, port, documentRoot, phpVersion, sudoPass
     index index.html;
 
     location / {
-        try_files $uri $uri/ @proxy;
+        try_files $uri @proxy;
     }
 
     location @proxy {
