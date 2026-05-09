@@ -26,6 +26,10 @@ if ! command -v node &> /dev/null; then
     echo "🟩 Installing Node.js..."
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt-get install -y nodejs
+fi
+
+if ! command -v pm2 &> /dev/null; then
+    echo "🟩 Installing PM2..."
     npm install -g pm2
 fi
 
@@ -42,7 +46,9 @@ if ! id "$PANEL_USER" &>/dev/null; then
 fi
 
 echo "⚙️ Configuring PM2 as a standalone system service..."
-env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u $PANEL_USER --hp $PANEL_DIR
+PM2_BIN=$(which pm2)
+NODE_BIN_DIR=$(dirname $(which node))
+env PATH=$PATH:$NODE_BIN_DIR $PM2_BIN startup systemd -u $PANEL_USER --hp $PANEL_DIR
 
 # 5. Setup Secure Sudoers Rules for the Panel User
 # This allows the panel to manage Nginx, PM2, and systemctl securely without full root access
@@ -94,6 +100,7 @@ chown -R $PANEL_USER:$PANEL_USER $PANEL_DIR
 
 # 7. Setup Systemd Service to keep backend running
 echo "⚙️ Creating Systemd service..."
+NODE_BIN=$(which node)
 cat <<EOF > /etc/systemd/system/srvpanel.service
 [Unit]
 Description=Server Management Panel Backend
@@ -103,7 +110,7 @@ After=network.target
 Type=simple
 User=$PANEL_USER
 WorkingDirectory=$PANEL_DIR/backend
-ExecStart=/usr/bin/node index.js
+ExecStart=$NODE_BIN index.js
 Restart=on-failure
 Environment=NODE_ENV=production
 Environment=PORT=$PORT
