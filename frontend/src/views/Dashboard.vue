@@ -10,6 +10,7 @@ const loading = ref(true)
 const error = ref('')
 const successMessage = ref('')
 const processingApp = ref(null)
+const processingService = ref(null)
 
 let pollInterval
 
@@ -171,6 +172,9 @@ const redeployApp = async (appName, sudoPwd = null) => {
 }
 
 const performServiceAction = async (serviceName, action, sudoPwd = null) => {
+  processingService.value = serviceName
+  error.value = ''
+  successMessage.value = ''
   if (typeof sudoPwd === 'string') currentSudoPassword.value = sudoPwd
 
   const token = localStorage.getItem('token')
@@ -189,12 +193,14 @@ const performServiceAction = async (serviceName, action, sudoPwd = null) => {
     if (res.status === 403 && data.error === 'SUDO_REQUIRED') {
       currentServiceAction.value = { serviceName, action }
       showSudoPrompt.value = true
+      processingService.value = null
       return
     }
     if (res.status === 403 && data.error === 'SUDO_INVALID') {
       sudoError.value = 'Incorrect sudo password.'
       showSudoPrompt.value = true
       currentSudoPassword.value = null
+      processingService.value = null
       return
     }
 
@@ -203,12 +209,16 @@ const performServiceAction = async (serviceName, action, sudoPwd = null) => {
 
     if (res.ok) {
       error.value = ''
+      successMessage.value = `Successfully executed ${action} on ${serviceName}`
+      setTimeout(() => { successMessage.value = '' }, 3000)
       await fetchDashboardData()
     } else {
       error.value = `Failed to ${action} ${serviceName}: ${data.error}`
     }
   } catch (err) {
     error.value = `Failed to ${action} ${serviceName}`
+  } finally {
+    processingService.value = null
   }
 }
 
@@ -307,7 +317,7 @@ const refreshLogs = async () => {
       :isOpen="showSudoPrompt" 
       :error="sudoError" 
       @submit="handleSudoSubmit" 
-      @cancel="showSudoPrompt = false; currentServiceAction = null; currentAppSudoAction = null; processingApp = null" 
+      @cancel="showSudoPrompt = false; currentServiceAction = null; currentAppSudoAction = null; processingApp = null; processingService = null" 
     />
 
     <!-- Toast Notifications -->
@@ -457,14 +467,16 @@ const refreshLogs = async () => {
             </div>
             
             <div class="flex items-center space-x-2">
-              <button @click="performServiceAction(service.name, 'restart')" class="text-gray-500 hover:text-white p-1.5 transition-colors rounded-md hover:bg-gray-800" title="Restart">
+              <div v-if="processingService === service.name" class="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+              
+              <button :disabled="processingService === service.name" @click="performServiceAction(service.name, 'restart')" class="text-gray-500 hover:text-white p-1.5 transition-colors rounded-md hover:bg-gray-800 disabled:opacity-50" title="Restart">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
               </button>
               
-              <button v-if="service.status === 'online'" @click="performServiceAction(service.name, 'stop')" class="text-red-400 hover:text-red-300 p-1.5 transition-colors rounded-md hover:bg-red-500/10" title="Stop">
+              <button :disabled="processingService === service.name" v-if="service.status === 'online'" @click="performServiceAction(service.name, 'stop')" class="text-red-400 hover:text-red-300 p-1.5 transition-colors rounded-md hover:bg-red-500/10 disabled:opacity-50" title="Stop">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path></svg>
               </button>
-              <button v-else @click="performServiceAction(service.name, 'start')" class="text-green-400 hover:text-green-300 p-1.5 transition-colors rounded-md hover:bg-green-500/10" title="Start">
+              <button :disabled="processingService === service.name" v-else @click="performServiceAction(service.name, 'start')" class="text-green-400 hover:text-green-300 p-1.5 transition-colors rounded-md hover:bg-green-500/10 disabled:opacity-50" title="Start">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
               </button>
             </div>
