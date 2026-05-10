@@ -392,6 +392,14 @@ app.post('/api/apps/:name/redeploy', authenticateToken, async (req, res) => {
     const sshKey = appRow ? appRow.ssh_key : null;
     
     const deployDir = `${resolvedBaseDir.replace(/\/$/, '')}/${appName}`;
+
+    if (sshKey && !/^[a-zA-Z0-9.\-_]+$/.test(sshKey)) {
+      return res.status(400).json({error: 'Invalid SSH key in database.'});
+    }
+    if (resolvedType && !/^[a-z]+$/.test(resolvedType)) {
+      return res.status(400).json({error: 'Invalid app type in database.'});
+    }
+
     const script = `#!/bin/bash
 set -e
 cd ${deployDir}

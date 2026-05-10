@@ -210,6 +210,9 @@ const getSshKeys = async () => {
 };
 
 const generateSshKey = async (keyName = 'id_ed25519') => {
+  if (!/^[a-zA-Z0-9.\-_]+$/.test(keyName)) {
+    throw new Error('Invalid SSH key name format.');
+  }
   const sshDir = path.join(os.homedir(), '.ssh');
   try {
     await fs.mkdir(sshDir, { recursive: true });

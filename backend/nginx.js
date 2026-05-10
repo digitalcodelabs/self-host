@@ -150,14 +150,23 @@ const getSiteConfig = async (domain) => {
 
 const updateSiteConfig = async (domain, content, sudoPassword = null) => {
   if (!/^[a-zA-Z0-9.-]+$/.test(domain)) throw new Error('Invalid domain name');
-  const tmpPath = `/tmp/nginx_${domain}_${Date.now()}.conf`;
+  const targetPath = `${NGINX_DIR}/${domain}.conf`;
   
   try {
-    // Write to a temporary file
-    await fs.writeFile(tmpPath, content);
-    
-    // Copy to the destination using sudo
-    await execSudo(`/bin/cp ${tmpPath} ${NGINX_DIR}/${domain}.conf`, sudoPassword);
+    try {
+      // Attempt to write directly (works if srvpanel owns the file)
+      await fs.writeFile(targetPath, content);
+    } catch (fsError) {
+      if (fsError.code === 'EACCES' || fsError.code === 'EPERM') {
+        // Fallback to sudo cp if direct write fails
+        const tmpPath = `/tmp/nginx_${domain}_${Date.now()}.conf`;
+        await fs.writeFile(tmpPath, content);
+        await execSudo(`/bin/cp ${tmpPath} ${targetPath}`, sudoPassword);
+        await fs.unlink(tmpPath).catch(() => {});
+      } else {
+        throw fsError;
+      }
+    }
     
     // Test nginx configuration
     await execSudo(`/usr/sbin/nginx -t`, sudoPassword);
@@ -169,8 +178,6 @@ const updateSiteConfig = async (domain, content, sudoPassword = null) => {
   } catch (err) {
     if (err.message === 'SUDO_REQUIRED' || err.message === 'SUDO_INVALID') throw err;
     throw new Error('Nginx validation failed or could not be reloaded: ' + err.message);
-  } finally {
-    await fs.unlink(tmpPath).catch(() => {});
   }
 };
 

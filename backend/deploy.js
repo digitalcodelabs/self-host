@@ -32,6 +32,18 @@ const deployApp = async (io, repoUrl, port, appName, branch = '', baseDeployDir 
   if (branch && !/^[a-zA-Z0-9.\-_/]+$/.test(branch)) {
     throw new Error('Invalid branch name format.');
   }
+
+  if (sshKey && !/^[a-zA-Z0-9.\-_]+$/.test(sshKey)) {
+    throw new Error('Invalid SSH key name format. Only alphanumeric, dots, dashes, and underscores are allowed.');
+  }
+
+  if (appType && !/^[a-z]+$/.test(appType)) {
+    throw new Error('Invalid app type format.');
+  }
+
+  if (port && !/^[0-9]+$/.test(port.toString())) {
+    throw new Error('Invalid port. Must be a number.');
+  }
   
   const deployDir = `${baseDeployDir.replace(/\/$/, '')}/${appName}`;
   
