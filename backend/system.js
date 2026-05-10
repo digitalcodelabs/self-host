@@ -96,9 +96,8 @@ const pm2Action = (appName, action) => {
         if (err) return reject(err);
         resolve();
       };
-      if (action === 'restart') pm2.restart(appName, cb);
+      if (action === 'restart' || action === 'start') pm2.restart(appName, cb);
       else if (action === 'stop') pm2.stop(appName, cb);
-      else if (action === 'start') pm2.start(appName, cb);
       else if (action === 'delete') pm2.delete(appName, cb);
       else {
         pm2.disconnect();

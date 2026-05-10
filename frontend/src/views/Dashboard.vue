@@ -8,6 +8,8 @@ const apps = ref([])
 const services = ref([])
 const loading = ref(true)
 const error = ref('')
+const successMessage = ref('')
+const processingApp = ref(null)
 
 let pollInterval
 
@@ -67,9 +69,12 @@ const cpuGraphPoints = computed(() => {
 });
 
 const performAppAction = async (appName, action) => {
+  processingApp.value = appName
+  error.value = ''
+  successMessage.value = ''
   const token = localStorage.getItem('token')
   try {
-    await fetch('/api/system/apps/action', {
+    const res = await fetch('/api/system/apps/action', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -77,9 +82,14 @@ const performAppAction = async (appName, action) => {
       },
       body: JSON.stringify({ appName, action })
     })
-    fetchDashboardData()
+    if (!res.ok) throw new Error('Action failed')
+    successMessage.value = `Successfully executed ${action} on ${appName}`
+    setTimeout(() => { successMessage.value = '' }, 3000)
+    await fetchDashboardData()
   } catch (err) {
-    error.value = 'Action failed'
+    error.value = `Failed to ${action} ${appName}`
+  } finally {
+    processingApp.value = null
   }
 }
 
@@ -104,6 +114,9 @@ const handleSudoSubmit = (pwd) => {
 const deleteApp = async (appName, sudoPwd = null) => {
   if (!sudoPwd && !confirm(`DANGER: Are you sure you want to completely delete ${appName}? This removes it from PM2 and DELETES the directory.`)) return;
   
+  processingApp.value = appName
+  error.value = ''
+  successMessage.value = ''
   if (typeof sudoPwd === 'string') currentSudoPassword.value = sudoPwd
   const token = localStorage.getItem('token')
   try {
@@ -115,19 +128,25 @@ const deleteApp = async (appName, sudoPwd = null) => {
     const data = await res.json()
     if (res.status === 403 && data.error === 'SUDO_REQUIRED') {
       currentAppSudoAction.value = { appName, actionType: 'delete' }
-      showSudoPrompt.value = true; return;
+      showSudoPrompt.value = true; processingApp.value = null; return;
     }
     if (res.status === 403 && data.error === 'SUDO_INVALID') {
-      sudoError.value = 'Incorrect sudo password.'; showSudoPrompt.value = true; currentSudoPassword.value = null; return;
+      sudoError.value = 'Incorrect sudo password.'; showSudoPrompt.value = true; currentSudoPassword.value = null; processingApp.value = null; return;
     }
     showSudoPrompt.value = false; currentAppSudoAction.value = null;
-    fetchDashboardData()
+    successMessage.value = `Successfully deleted application: ${appName}`
+    setTimeout(() => { successMessage.value = '' }, 3000)
+    await fetchDashboardData()
   } catch (err) { error.value = 'Delete failed' }
+  finally { processingApp.value = null }
 }
 
 const redeployApp = async (appName, sudoPwd = null) => {
   if (!sudoPwd && !confirm(`Redeploy ${appName}? This will run git pull, build, and restart.`)) return;
   
+  processingApp.value = appName
+  error.value = ''
+  successMessage.value = ''
   if (typeof sudoPwd === 'string') currentSudoPassword.value = sudoPwd
   const token = localStorage.getItem('token')
   try {
@@ -139,14 +158,16 @@ const redeployApp = async (appName, sudoPwd = null) => {
     const data = await res.json()
     if (res.status === 403 && data.error === 'SUDO_REQUIRED') {
       currentAppSudoAction.value = { appName, actionType: 'redeploy' }
-      showSudoPrompt.value = true; return;
+      showSudoPrompt.value = true; processingApp.value = null; return;
     }
     if (res.status === 403 && data.error === 'SUDO_INVALID') {
-      sudoError.value = 'Incorrect sudo password.'; showSudoPrompt.value = true; currentSudoPassword.value = null; return;
+      sudoError.value = 'Incorrect sudo password.'; showSudoPrompt.value = true; currentSudoPassword.value = null; processingApp.value = null; return;
     }
     showSudoPrompt.value = false; currentAppSudoAction.value = null;
-    alert('Redeployment started! View logs in the Deployments tab or wait a moment.');
+    successMessage.value = `Redeployment started for ${appName}! View logs in the Deployments tab.`
+    setTimeout(() => { successMessage.value = '' }, 5000)
   } catch (err) { error.value = 'Redeploy failed' }
+  finally { processingApp.value = null }
 }
 
 const performServiceAction = async (serviceName, action, sudoPwd = null) => {
@@ -286,11 +307,15 @@ const refreshLogs = async () => {
       :isOpen="showSudoPrompt" 
       :error="sudoError" 
       @submit="handleSudoSubmit" 
-      @cancel="showSudoPrompt = false; currentServiceAction = null; currentAppSudoAction = null" 
+      @cancel="showSudoPrompt = false; currentServiceAction = null; currentAppSudoAction = null; processingApp = null" 
     />
 
     <div v-if="error" class="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-md text-sm text-red-500">
       {{ error }}
+    </div>
+    
+    <div v-if="successMessage" class="mb-6 p-4 bg-green-500/10 border border-green-500/50 rounded-md text-sm text-green-400">
+      {{ successMessage }}
     </div>
 
     <!-- Stats -->
@@ -357,29 +382,30 @@ const refreshLogs = async () => {
               </div>
             </div>
             <div class="flex items-center space-x-2">
-              <button @click="openEnvModal(app.name)" class="text-indigo-400 hover:text-indigo-300 px-2 py-1.5 transition-colors rounded-md hover:bg-indigo-500/10 text-xs font-bold" title=".env Editor">
+              <div v-if="processingApp === app.name" class="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+              <button :disabled="processingApp === app.name" @click="openEnvModal(app.name)" class="text-indigo-400 hover:text-indigo-300 px-2 py-1.5 transition-colors rounded-md hover:bg-indigo-500/10 text-xs font-bold disabled:opacity-50" title=".env Editor">
                 ENV
               </button>
-              <button @click="openLogsModal(app.name)" class="text-blue-400 hover:text-blue-300 px-2 py-1.5 transition-colors rounded-md hover:bg-blue-500/10 text-xs font-bold" title="View Logs">
+              <button :disabled="processingApp === app.name" @click="openLogsModal(app.name)" class="text-blue-400 hover:text-blue-300 px-2 py-1.5 transition-colors rounded-md hover:bg-blue-500/10 text-xs font-bold disabled:opacity-50" title="View Logs">
                 LOGS
               </button>
               <div class="w-px h-4 bg-gray-800 mx-1"></div>
-              <button @click="performAppAction(app.name, 'restart')" class="text-gray-500 hover:text-white p-1.5 transition-colors rounded-md hover:bg-gray-800" title="Restart">
+              <button :disabled="processingApp === app.name" @click="performAppAction(app.name, 'restart')" class="text-gray-500 hover:text-white p-1.5 transition-colors rounded-md hover:bg-gray-800 disabled:opacity-50" title="Restart">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
               </button>
               
-              <button v-if="app.status === 'online'" @click="performAppAction(app.name, 'stop')" class="text-yellow-400 hover:text-yellow-300 p-1.5 transition-colors rounded-md hover:bg-yellow-500/10" title="Stop">
+              <button :disabled="processingApp === app.name" v-if="app.status === 'online'" @click="performAppAction(app.name, 'stop')" class="text-yellow-400 hover:text-yellow-300 p-1.5 transition-colors rounded-md hover:bg-yellow-500/10 disabled:opacity-50" title="Stop">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path></svg>
               </button>
-              <button v-else @click="performAppAction(app.name, 'start')" class="text-green-400 hover:text-green-300 p-1.5 transition-colors rounded-md hover:bg-green-500/10" title="Start">
+              <button :disabled="processingApp === app.name" v-else @click="performAppAction(app.name, 'start')" class="text-green-400 hover:text-green-300 p-1.5 transition-colors rounded-md hover:bg-green-500/10 disabled:opacity-50" title="Start">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
               </button>
 
-              <button @click="redeployApp(app.name)" class="text-blue-400 hover:text-blue-300 p-1.5 transition-colors rounded-md hover:bg-blue-500/10" title="Redeploy (Pull & Build)">
+              <button :disabled="processingApp === app.name" @click="redeployApp(app.name)" class="text-blue-400 hover:text-blue-300 p-1.5 transition-colors rounded-md hover:bg-blue-500/10 disabled:opacity-50" title="Redeploy (Pull & Build)">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
               </button>
               
-              <button @click="deleteApp(app.name)" class="text-red-400 hover:text-red-300 p-1.5 transition-colors rounded-md hover:bg-red-500/10" title="Complete Delete (PM2 + Files)">
+              <button :disabled="processingApp === app.name" @click="deleteApp(app.name)" class="text-red-400 hover:text-red-300 p-1.5 transition-colors rounded-md hover:bg-red-500/10 disabled:opacity-50" title="Complete Delete (PM2 + Files)">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
               </button>
             </div>
