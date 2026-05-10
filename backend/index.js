@@ -328,9 +328,11 @@ app.delete('/api/apps/:name', authenticateToken, async (req, res) => {
     
     // Stop and delete from PM2 (ignore errors if it doesn't exist)
     try {
-      await execSudo(`/usr/bin/pm2 delete ${appName}`, sudoPassword);
-      await execSudo(`/usr/bin/pm2 save`, sudoPassword);
-    } catch(e) { console.log('PM2 delete skipped or failed'); }
+      await pm2Action(appName, 'delete');
+      // Execute pm2 save using the correct user, not root
+      const { exec } = require('child_process');
+      exec('pm2 save', (err) => { if(err) console.log('pm2 save error:', err); });
+    } catch(e) { console.log('PM2 delete skipped or failed', e.message); }
     
     // Delete application directory safely
     const deployDir = `${baseDeployDir.replace(/\/$/, '')}/${appName}`;
