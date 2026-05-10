@@ -138,4 +138,40 @@ const deleteSite = async (domain, sudoPassword = null) => {
   }
 };
 
-module.exports = { getSites, createSite, issueSsl, deleteSite };
+const getSiteConfig = async (domain) => {
+  if (!/^[a-zA-Z0-9.-]+$/.test(domain)) throw new Error('Invalid domain name');
+  try {
+    const content = await fs.readFile(`${NGINX_DIR}/${domain}.conf`, 'utf8');
+    return content;
+  } catch (err) {
+    throw new Error('Failed to read config. Make sure it exists.');
+  }
+};
+
+const updateSiteConfig = async (domain, content, sudoPassword = null) => {
+  if (!/^[a-zA-Z0-9.-]+$/.test(domain)) throw new Error('Invalid domain name');
+  const tmpPath = `/tmp/nginx_${domain}_${Date.now()}.conf`;
+  
+  try {
+    // Write to a temporary file
+    await fs.writeFile(tmpPath, content);
+    
+    // Copy to the destination using sudo
+    await execSudo(`/bin/cp ${tmpPath} ${NGINX_DIR}/${domain}.conf`, sudoPassword);
+    
+    // Test nginx configuration
+    await execSudo(`/usr/sbin/nginx -t`, sudoPassword);
+    
+    // Reload nginx if successful
+    await execSudo(`/bin/systemctl reload nginx`, sudoPassword);
+    
+    return { success: true, message: 'Nginx config updated and reloaded successfully.' };
+  } catch (err) {
+    if (err.message === 'SUDO_REQUIRED' || err.message === 'SUDO_INVALID') throw err;
+    throw new Error('Nginx validation failed or could not be reloaded: ' + err.message);
+  } finally {
+    await fs.unlink(tmpPath).catch(() => {});
+  }
+};
+
+module.exports = { getSites, createSite, issueSsl, deleteSite, getSiteConfig, updateSiteConfig };

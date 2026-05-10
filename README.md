@@ -25,7 +25,7 @@ cd backend
 npm install
 node index.js
 ```
-*Note: The backend runs on port `3000`. If you attempt to manage Nginx or systemctl services locally, the application will fallback to "Dev Mode" safely and simulate the success unless you run it with elevated privileges (e.g., `sudo node index.js`).*
+*Note: The backend runs on port `7777`. If you attempt to manage Nginx or systemctl services locally, the application will fallback to "Dev Mode" safely and simulate the success unless you run it with elevated privileges (e.g., `sudo node index.js`).*
 
 ### 2. Start the Frontend
 

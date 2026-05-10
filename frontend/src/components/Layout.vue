@@ -2,6 +2,8 @@
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+const version = import.meta.env.VITE_APP_VERSION || 'v1.0'
+
 const logout = () => {
   localStorage.removeItem('token')
   router.push('/login')
@@ -16,7 +18,10 @@ const logout = () => {
         <svg class="w-10 h-10 text-white drop-shadow-md" viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
         </svg>
-        <span class="text-xl font-bold ml-2">dcl-panel</span>
+        <div class="flex flex-col ml-2">
+          <span class="text-xl font-bold leading-tight tracking-tight">dcl-panel</span>
+          <span class="text-[10px] font-semibold text-indigo-400 tracking-widest uppercase mt-0.5">{{ version }}</span>
+        </div>
       </div>
       <nav class="mt-2 px-3 space-y-1 flex-1">
         <router-link to="/" class="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors" exact-active-class="bg-gray-800 text-white font-medium">

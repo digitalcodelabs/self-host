@@ -191,7 +191,6 @@ const systemctlAction = async (serviceName, action, sudoPassword = null) => {
   await execSudo(`/bin/systemctl ${action} ${serviceName}`, sudoPassword);
 };
 
-const fs = require('fs/promises');
 const path = require('path');
 
 const getSshKeys = async () => {

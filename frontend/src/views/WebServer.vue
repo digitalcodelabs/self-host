@@ -16,6 +16,12 @@ const message = ref('')
 const messageType = ref('success')
 const restartingNginx = ref(false)
 
+const showConfigModal = ref(false)
+const configDomain = ref('')
+const configContent = ref('')
+const configError = ref('')
+const savingConfig = ref(false)
+
 let hasManuallyEditedRoot = false
 
 watch(domain, (newVal) => {
@@ -49,6 +55,7 @@ const handleSudoSubmit = (pwd) => {
   if (sudoAction.value === 'createSite') createSite(pwd)
   else if (sudoAction.value === 'issueSsl') issueSsl(currentDomainForSsl.value, pwd)
   else if (sudoAction.value === 'restartNginx') restartNginx(pwd)
+  else if (sudoAction.value === 'saveConfig') saveConfig(pwd)
 }
 
 const issueSsl = async (domainToIssue, sudoPwd = null) => {
@@ -191,6 +198,73 @@ const restartNginx = async (sudoPwd = null) => {
   }
 }
 
+const openConfig = async (domainToOpen) => {
+  configDomain.value = domainToOpen
+  configError.value = ''
+  try {
+    const res = await fetch(`/api/nginx/sites/${domainToOpen}`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    })
+    const data = await res.json()
+    if (res.ok) {
+      configContent.value = data.content
+      showConfigModal.value = true
+    } else {
+      alert('Failed to load config: ' + data.error)
+    }
+  } catch (err) {
+    alert('Failed to load config.')
+  }
+}
+
+const saveConfig = async (sudoPwd = null) => {
+  if (typeof sudoPwd === 'string') currentSudoPassword.value = sudoPwd
+
+  savingConfig.value = true
+  configError.value = ''
+  sudoError.value = ''
+  sudoAction.value = 'saveConfig'
+
+  try {
+    const res = await fetch(`/api/nginx/sites/${configDomain.value}`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ content: configContent.value, sudoPassword: currentSudoPassword.value })
+    })
+    const data = await res.json()
+
+    if (res.status === 403 && data.error === 'SUDO_REQUIRED') {
+      showSudoPrompt.value = true
+      savingConfig.value = false
+      return
+    }
+    if (res.status === 403 && data.error === 'SUDO_INVALID') {
+      sudoError.value = 'Incorrect sudo password.'
+      showSudoPrompt.value = true
+      savingConfig.value = false
+      currentSudoPassword.value = null
+      return
+    }
+
+    showSudoPrompt.value = false
+    if (res.ok) {
+      showConfigModal.value = false
+      messageType.value = 'success'
+      message.value = 'Nginx config updated successfully.'
+      setTimeout(() => { message.value = '' }, 5000)
+    } else {
+      configError.value = `Failed to save config: ${data.error}`
+    }
+  } catch (err) {
+    configError.value = 'An error occurred while saving config.'
+  } finally {
+    savingConfig.value = false
+  }
+}
+
 onMounted(fetchSitesAndPHP)
 </script>
 
@@ -241,9 +315,14 @@ onMounted(fetchSitesAndPHP)
               <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
               <h4 class="text-white font-medium text-sm">{{ site }}</h4>
             </div>
-            <button @click="issueSsl(site.replace('.conf', ''))" class="text-xs font-medium text-green-400 bg-green-500/10 hover:bg-green-500/20 px-3 py-1.5 rounded border border-green-500/20 transition-colors">
-              Issue SSL
-            </button>
+            <div class="flex gap-2">
+              <button @click="openConfig(site.replace('.conf', ''))" class="text-xs font-medium text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded border border-blue-500/20 transition-colors">
+                Edit Config
+              </button>
+              <button @click="issueSsl(site.replace('.conf', ''))" class="text-xs font-medium text-green-400 bg-green-500/10 hover:bg-green-500/20 px-3 py-1.5 rounded border border-green-500/20 transition-colors">
+                Issue SSL
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -291,6 +370,38 @@ onMounted(fetchSitesAndPHP)
             {{ loading ? 'Configuring...' : 'Create Config' }}
           </button>
         </form>
+      </div>
+    </div>
+
+    <!-- Config Modal -->
+    <div v-if="showConfigModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-[80vh]">
+        <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-gray-950 rounded-t-xl">
+          <h3 class="text-lg font-bold text-white">Edit Nginx Config: {{ configDomain }}.conf</h3>
+          <button @click="showConfigModal = false" class="text-gray-400 hover:text-white transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        
+        <div v-if="configError" class="m-4 p-3 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">
+          {{ configError }}
+        </div>
+        
+        <div class="flex-1 p-4 overflow-hidden flex flex-col">
+          <textarea 
+            v-model="configContent" 
+            class="flex-1 w-full bg-gray-950 border border-gray-800 rounded-md p-4 text-sm text-gray-300 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+            spellcheck="false"
+          ></textarea>
+        </div>
+        
+        <div class="px-6 py-4 border-t border-gray-800 bg-gray-950 rounded-b-xl flex justify-end gap-3">
+          <button @click="showConfigModal = false" class="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors">Cancel</button>
+          <button @click="saveConfig()" :disabled="savingConfig" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 flex items-center gap-2">
+            <svg v-if="savingConfig" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            {{ savingConfig ? 'Validating & Saving...' : 'Save & Reload Nginx' }}
+          </button>
+        </div>
       </div>
     </div>
   </div>

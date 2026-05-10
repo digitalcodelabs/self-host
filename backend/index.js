@@ -10,7 +10,7 @@ const { RateLimiterMemory } = require('rate-limiter-flexible');
 const db = require('./db');
 const { getSystemStats, getApps, getServices, pm2Action, systemctlAction, getSshKeys, generateSshKey, getAppCwd } = require('./system');
 const { execSudo } = require('./shellService');
-const { getSites, createSite, issueSsl, deleteSite } = require('./nginx');
+const { getSites, createSite, issueSsl, deleteSite, getSiteConfig, updateSiteConfig } = require('./nginx');
 const { getCronJobs, addCronJob } = require('./cron');
 const { deployApp } = require('./deploy');
 const { getPhpVersions, restartPhpFpm } = require('./php');
@@ -186,6 +186,28 @@ app.post('/api/nginx/sites', authenticateToken, async (req, res) => {
   try {
     const { domain, type, port, documentRoot, phpVersion, sudoPassword } = req.body;
     const result = await createSite(domain, type, port, documentRoot, phpVersion, sudoPassword);
+    res.json(result);
+  } catch (error) {
+    if (error.message === 'SUDO_REQUIRED' || error.message === 'SUDO_INVALID') {
+      return res.status(403).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/nginx/sites/:domain', authenticateToken, async (req, res) => {
+  try {
+    const content = await getSiteConfig(req.params.domain);
+    res.json({ content });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/nginx/sites/:domain', authenticateToken, async (req, res) => {
+  try {
+    const { content, sudoPassword } = req.body;
+    const result = await updateSiteConfig(req.params.domain, content, sudoPassword);
     res.json(result);
   } catch (error) {
     if (error.message === 'SUDO_REQUIRED' || error.message === 'SUDO_INVALID') {
@@ -427,7 +449,6 @@ pm2 restart "${appName}"
   }
 });
 
-const { deleteSite } = require('./nginx');
 
 app.delete('/api/nginx/sites/:domain', authenticateToken, async (req, res) => {
   try {
@@ -495,6 +516,6 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
-const HOST = process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0';
+const PORT = process.env.PORT || 7777;
+const HOST = '0.0.0.0'; // Always bind to all interfaces so the panel is accessible via IP
 server.listen(PORT, HOST, () => console.log(`Backend running on ${HOST}:${PORT}`));
