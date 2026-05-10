@@ -310,12 +310,35 @@ const refreshLogs = async () => {
       @cancel="showSudoPrompt = false; currentServiceAction = null; currentAppSudoAction = null; processingApp = null" 
     />
 
-    <div v-if="error" class="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-md text-sm text-red-500">
-      {{ error }}
-    </div>
-    
-    <div v-if="successMessage" class="mb-6 p-4 bg-green-500/10 border border-green-500/50 rounded-md text-sm text-green-400">
-      {{ successMessage }}
+    <!-- Toast Notifications -->
+    <div class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+      <transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="transform translate-y-2 opacity-0"
+        enter-to-class="transform translate-y-0 opacity-100"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="transform translate-y-0 opacity-100"
+        leave-to-class="transform translate-y-2 opacity-0"
+      >
+        <div v-if="error" class="pointer-events-auto px-4 py-3 bg-red-500/90 backdrop-blur-md border border-red-500/50 rounded-lg text-sm text-white shadow-2xl flex items-center gap-3">
+          <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          {{ error }}
+        </div>
+      </transition>
+      
+      <transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="transform translate-y-2 opacity-0"
+        enter-to-class="transform translate-y-0 opacity-100"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="transform translate-y-0 opacity-100"
+        leave-to-class="transform translate-y-2 opacity-0"
+      >
+        <div v-if="successMessage" class="pointer-events-auto px-4 py-3 bg-green-500/90 backdrop-blur-md border border-green-500/50 rounded-lg text-sm text-white shadow-2xl flex items-center gap-3">
+          <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+          {{ successMessage }}
+        </div>
+      </transition>
     </div>
 
     <!-- Stats -->
