@@ -297,8 +297,9 @@ const fs = require('fs/promises');
 app.get('/api/apps/:name/env', authenticateToken, async (req, res) => {
   try {
     const appName = req.params.name;
+    const { baseDeployDir = '/var/www' } = req.query;
     if (!/^[a-zA-Z0-9-]+$/.test(appName)) return res.status(400).json({error: 'Invalid app name'});
-    const envPath = `/var/www/${appName}/.env`;
+    const envPath = `${baseDeployDir.replace(/\/$/, '')}/${appName}/.env`;
     try {
       const content = await fs.readFile(envPath, 'utf8');
       res.json({ content });
@@ -311,12 +312,118 @@ app.get('/api/apps/:name/env', authenticateToken, async (req, res) => {
 app.post('/api/apps/:name/env', authenticateToken, async (req, res) => {
   try {
     const appName = req.params.name;
-    const { content } = req.body;
+    const { content, baseDeployDir = '/var/www' } = req.body;
     if (!/^[a-zA-Z0-9-]+$/.test(appName)) return res.status(400).json({error: 'Invalid app name'});
-    const envPath = `/var/www/${appName}/.env`;
+    const envPath = `${baseDeployDir.replace(/\/$/, '')}/${appName}/.env`;
     await fs.writeFile(envPath, content || '', 'utf8');
     res.json({ success: true });
   } catch(e) { res.status(500).json({error: e.message}); }
+});
+
+app.delete('/api/apps/:name', authenticateToken, async (req, res) => {
+  try {
+    const appName = req.params.name;
+    const { sudoPassword, baseDeployDir = '/var/www' } = req.body;
+    if (!/^[a-zA-Z0-9-]+$/.test(appName)) return res.status(400).json({error: 'Invalid app name'});
+    
+    // Stop and delete from PM2 (ignore errors if it doesn't exist)
+    try {
+      await execSudo(`/usr/bin/pm2 delete ${appName}`, sudoPassword);
+      await execSudo(`/usr/bin/pm2 save`, sudoPassword);
+    } catch(e) { console.log('PM2 delete skipped or failed'); }
+    
+    // Delete application directory safely
+    const deployDir = `${baseDeployDir.replace(/\/$/, '')}/${appName}`;
+    
+    // Strict safety checks to prevent catastrophic deletions
+    const forbiddenPaths = ['/', '/var', '/var/www', '/etc', '/usr', '/bin', '/sbin', '/dev', '/sys', '/root', '/home'];
+    if (forbiddenPaths.includes(deployDir) || !deployDir.startsWith('/')) {
+      return res.status(400).json({ error: 'Unsafe directory deletion prevented.' });
+    }
+    
+    await execSudo(`/bin/bash -c "if [ -d '${deployDir}' ]; then rm -rf '${deployDir}'; fi"`, sudoPassword);
+    
+    res.json({ success: true, message: 'Application deleted successfully' });
+  } catch(e) {
+    if (e.message === 'SUDO_REQUIRED' || e.message === 'SUDO_INVALID') return res.status(403).json({ error: e.message });
+    res.status(500).json({error: e.message});
+  }
+});
+
+app.post('/api/apps/:name/redeploy', authenticateToken, async (req, res) => {
+  try {
+    const appName = req.params.name;
+    const { sudoPassword, appType = 'node', baseDeployDir = '/var/www' } = req.body;
+    if (!/^[a-zA-Z0-9-]+$/.test(appName)) return res.status(400).json({error: 'Invalid app name'});
+    
+    const deployDir = `${baseDeployDir.replace(/\/$/, '')}/${appName}`;
+    const script = `#!/bin/bash
+set -e
+cd ${deployDir}
+
+if [ -d ".git" ]; then
+  echo "> Pulling latest changes..."
+  git fetch origin
+  git pull
+fi
+
+if [ "${appType}" == "laravel" ]; then
+  if [ -f "composer.json" ]; then composer install --no-interaction --prefer-dist --optimize-autoloader; fi
+  if [ -f "package.json" ]; then npm install && npm run build || true; fi
+  php artisan optimize:clear || true
+  php artisan migrate --force || true
+  chown -R www-data:www-data . || true
+  exit 0
+fi
+
+if [ "${appType}" == "php" ]; then exit 0; fi
+
+export PATH=$PATH:$(pwd)/node_modules/.bin
+OLD_NODE_ENV=$NODE_ENV
+export NODE_ENV=development
+npm install --ignore-scripts --include=dev
+export NODE_ENV=$OLD_NODE_ENV
+
+if [ "${appType}" == "nuxt" ]; then npx nuxt prepare; fi
+if grep -q '"build":' package.json; then npm run build; elif [ "${appType}" == "nuxt" ]; then npx nuxt build; fi
+
+pm2 restart "${appName}"
+`;
+
+    const scriptPath = `/tmp/redeploy_${appName}_${Date.now()}.sh`;
+    await fs.writeFile(scriptPath, script);
+    await fs.chmod(scriptPath, 0o755);
+    
+    const { spawn } = require('child_process');
+    const child = spawn('bash', [scriptPath]);
+    
+    child.stdout.on('data', (data) => io.emit('deploy-log', data.toString()));
+    child.stderr.on('data', (data) => io.emit('deploy-log', `[STDERR] ${data.toString()}`));
+    
+    child.on('close', async (code) => {
+      await fs.unlink(scriptPath).catch(() => {});
+      io.emit('deploy-end');
+    });
+    
+    res.json({ success: true, message: 'Redeployment started' });
+  } catch(e) {
+    if (e.message === 'SUDO_REQUIRED' || e.message === 'SUDO_INVALID') return res.status(403).json({ error: e.message });
+    res.status(500).json({error: e.message});
+  }
+});
+
+const { deleteSite } = require('./nginx');
+
+app.delete('/api/nginx/sites/:domain', authenticateToken, async (req, res) => {
+  try {
+    const domain = req.params.domain;
+    const { sudoPassword } = req.body;
+    const result = await deleteSite(domain, sudoPassword);
+    res.json(result);
+  } catch(error) {
+    if (error.message === 'SUDO_REQUIRED' || error.message === 'SUDO_INVALID') return res.status(403).json({ error: error.message });
+    res.status(500).json({error: error.message});
+  }
 });
 
 const { getAppLogs } = require('./system');

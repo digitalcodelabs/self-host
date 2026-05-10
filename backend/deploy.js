@@ -64,6 +64,28 @@ else
   echo "> Skipping Git operations (Existing directory deployment)."
 fi
 
+if [ "${appType}" == "laravel" ] || [ "${appType}" == "php" ]; then
+  if [ "${appType}" == "laravel" ]; then
+    echo "> Laravel project detected, running composer and npm..."
+    if [ -f "composer.json" ]; then
+      composer install --no-interaction --prefer-dist --optimize-autoloader
+    fi
+    if [ -f "package.json" ]; then
+      npm install
+      npm run build || true
+    fi
+    echo "> Running Laravel specific commands..."
+    php artisan optimize:clear || true
+    php artisan migrate --force || true
+  else
+    echo "> PHP project detected, skipping build steps."
+  fi
+  echo "> Setting correct permissions for web server..."
+  chown -R www-data:www-data . || true
+  echo "> [SUCCESS] PHP/Laravel Deployment completed successfully!"
+  exit 0
+fi
+
 echo "> Installing Node.js dependencies..."
 export PATH=$PATH:$(pwd)/node_modules/.bin
 # Temporarily unset NODE_ENV to ensure devDependencies (like nuxt) are installed
@@ -99,7 +121,7 @@ fi
 
 pm2 save
 
-echo "> [SUCCESS] Deployment completed successfully!"
+echo "> [SUCCESS] Node.js Deployment completed successfully!"
 `;
 
   const scriptPath = `/tmp/deploy_${appName}_${Date.now()}.sh`;

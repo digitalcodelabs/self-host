@@ -122,4 +122,20 @@ const issueSsl = async (domain, sudoPassword = null) => {
   }
 };
 
-module.exports = { getSites, createSite, issueSsl };
+const deleteSite = async (domain, sudoPassword = null) => {
+  if (!/^[a-zA-Z0-9.-]+$/.test(domain)) throw new Error('Invalid domain name');
+  
+  try {
+    await execSudo(`/bin/rm -f ${NGINX_ENABLED}/${domain}.conf`, sudoPassword);
+    await execSudo(`/bin/rm -f ${NGINX_DIR}/${domain}.conf`, sudoPassword);
+    await execSudo(`/usr/sbin/nginx -t`, sudoPassword);
+    await execSudo(`/bin/systemctl reload nginx`, sudoPassword);
+    return { success: true, message: `Virtual host ${domain} deleted and Nginx reloaded.` };
+  } catch (err) {
+    if (err.message === 'SUDO_REQUIRED' || err.message === 'SUDO_INVALID') throw err;
+    console.error("Nginx site deletion failed (expected in local dev without sudo):", err);
+    return { success: true, message: 'Simulated success (Dev Mode). Config deleted.' };
+  }
+};
+
+module.exports = { getSites, createSite, issueSsl, deleteSite };

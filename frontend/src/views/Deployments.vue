@@ -205,7 +205,9 @@ const startDeployment = async (sudoPwd = null) => {
             <label class="block text-sm font-medium text-gray-300 mb-1">App Type</label>
             <select v-model="appType" class="w-full bg-gray-950 border border-gray-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-shadow">
               <option value="node">Standard Node.js</option>
-              <option value="nuxt">Nuxt.js (with public folder)</option>
+              <option value="nuxt">Nuxt.js</option>
+              <option value="laravel">Laravel</option>
+              <option value="php">Vanilla PHP</option>
             </select>
           </div>
 

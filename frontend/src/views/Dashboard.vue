@@ -83,21 +83,70 @@ const performAppAction = async (appName, action) => {
   }
 }
 
-const deleteApp = (appName) => {
-  if (confirm(`Are you sure you want to delete ${appName} from PM2?`)) {
-    performAppAction(appName, 'delete')
-  }
-}
-
 const showSudoPrompt = ref(false)
 const sudoError = ref('')
 const currentSudoPassword = ref(null)
 const currentServiceAction = ref(null)
+const currentAppSudoAction = ref(null) // { appName, actionType }
 
 const handleSudoSubmit = (pwd) => {
   if (currentServiceAction.value) {
     performServiceAction(currentServiceAction.value.serviceName, currentServiceAction.value.action, pwd)
+  } else if (currentAppSudoAction.value) {
+    if (currentAppSudoAction.value.actionType === 'delete') {
+      deleteApp(currentAppSudoAction.value.appName, pwd)
+    } else if (currentAppSudoAction.value.actionType === 'redeploy') {
+      redeployApp(currentAppSudoAction.value.appName, pwd)
+    }
   }
+}
+
+const deleteApp = async (appName, sudoPwd = null) => {
+  if (!sudoPwd && !confirm(`DANGER: Are you sure you want to completely delete ${appName}? This removes it from PM2 and DELETES the directory.`)) return;
+  
+  if (typeof sudoPwd === 'string') currentSudoPassword.value = sudoPwd
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`/api/apps/${appName}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ sudoPassword: currentSudoPassword.value })
+    })
+    const data = await res.json()
+    if (res.status === 403 && data.error === 'SUDO_REQUIRED') {
+      currentAppSudoAction.value = { appName, actionType: 'delete' }
+      showSudoPrompt.value = true; return;
+    }
+    if (res.status === 403 && data.error === 'SUDO_INVALID') {
+      sudoError.value = 'Incorrect sudo password.'; showSudoPrompt.value = true; currentSudoPassword.value = null; return;
+    }
+    showSudoPrompt.value = false; currentAppSudoAction.value = null;
+    fetchDashboardData()
+  } catch (err) { error.value = 'Delete failed' }
+}
+
+const redeployApp = async (appName, sudoPwd = null) => {
+  if (!sudoPwd && !confirm(`Redeploy ${appName}? This will run git pull, build, and restart.`)) return;
+  
+  if (typeof sudoPwd === 'string') currentSudoPassword.value = sudoPwd
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`/api/apps/${appName}/redeploy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ sudoPassword: currentSudoPassword.value })
+    })
+    const data = await res.json()
+    if (res.status === 403 && data.error === 'SUDO_REQUIRED') {
+      currentAppSudoAction.value = { appName, actionType: 'redeploy' }
+      showSudoPrompt.value = true; return;
+    }
+    if (res.status === 403 && data.error === 'SUDO_INVALID') {
+      sudoError.value = 'Incorrect sudo password.'; showSudoPrompt.value = true; currentSudoPassword.value = null; return;
+    }
+    showSudoPrompt.value = false; currentAppSudoAction.value = null;
+    alert('Redeployment started! View logs in the Deployments tab or wait a moment.');
+  } catch (err) { error.value = 'Redeploy failed' }
 }
 
 const performServiceAction = async (serviceName, action, sudoPwd = null) => {
@@ -237,7 +286,7 @@ const refreshLogs = async () => {
       :isOpen="showSudoPrompt" 
       :error="sudoError" 
       @submit="handleSudoSubmit" 
-      @cancel="showSudoPrompt = false; currentServiceAction = null" 
+      @cancel="showSudoPrompt = false; currentServiceAction = null; currentAppSudoAction = null" 
     />
 
     <div v-if="error" class="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-md text-sm text-red-500">
@@ -326,7 +375,11 @@ const refreshLogs = async () => {
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
               </button>
 
-              <button @click="deleteApp(app.name)" class="text-red-400 hover:text-red-300 p-1.5 transition-colors rounded-md hover:bg-red-500/10" title="Delete from PM2">
+              <button @click="redeployApp(app.name)" class="text-blue-400 hover:text-blue-300 p-1.5 transition-colors rounded-md hover:bg-blue-500/10" title="Redeploy (Pull & Build)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+              </button>
+              
+              <button @click="deleteApp(app.name)" class="text-red-400 hover:text-red-300 p-1.5 transition-colors rounded-md hover:bg-red-500/10" title="Complete Delete (PM2 + Files)">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
               </button>
             </div>
