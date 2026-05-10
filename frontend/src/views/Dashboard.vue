@@ -382,9 +382,9 @@ const refreshLogs = async () => {
     </div>
 
     <!-- Services Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <!-- App List -->
-      <div class="bg-gray-950 border border-gray-800 rounded-xl shadow-sm overflow-hidden">
+      <div class="lg:col-span-2 bg-gray-950 border border-gray-800 rounded-xl shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-800 bg-gray-900/50">
           <h3 class="text-sm font-semibold text-white">Node.js Apps (PM2)</h3>
         </div>
