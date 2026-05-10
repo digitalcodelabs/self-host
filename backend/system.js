@@ -133,6 +133,20 @@ const getAppLogs = (appName) => {
   });
 };
 
+const getAppCwd = (appName) => {
+  return new Promise((resolve, reject) => {
+    pm2.connect((err) => {
+      if (err) return reject(err);
+      pm2.describe(appName, (err, description) => {
+        pm2.disconnect();
+        if (err) return reject(err);
+        if (!description || description.length === 0) return resolve(null);
+        resolve(description[0].pm2_env.pm_cwd);
+      });
+    });
+  });
+};
+
 const systemctlAction = async (serviceName, action, sudoPassword = null) => {
   const allowedServices = ['nginx', 'mysql', 'mariadb', 'redis-server', 'memcached'];
   const isPhp = serviceName.startsWith('php') && serviceName.endsWith('-fpm');
@@ -182,4 +196,4 @@ const generateSshKey = async (keyName = 'id_ed25519') => {
   });
 };
 
-module.exports = { getSystemStats, getApps, getServices, pm2Action, getAppLogs, systemctlAction, getSshKeys, generateSshKey };
+module.exports = { getSystemStats, getApps, getServices, pm2Action, getAppLogs, systemctlAction, getSshKeys, generateSshKey, getAppCwd };
