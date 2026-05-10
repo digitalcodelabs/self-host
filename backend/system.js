@@ -1,5 +1,8 @@
 const os = require('os');
 const pm2 = require('pm2');
+const childProcess = require('child_process');
+const fs = require('fs').promises;
+const db = require('./db');
 
 const getSystemStats = async () => {
   const totalMem = os.totalmem();
@@ -46,15 +49,44 @@ const getApps = () => {
         pm2.disconnect();
         if (err) return reject(err);
         
-        const apps = list.map(app => ({
-          id: app.pm_id,
-          name: app.name,
-          status: app.pm2_env.status,
-          memory: Math.round(app.monit ? app.monit.memory / 1024 / 1024 : 0),
-          cpu: app.monit ? app.monit.cpu : 0,
-          uptime: app.pm2_env.pm_uptime
-        }));
-        resolve(apps);
+        const pm2AppsMap = new Map();
+        list.forEach(app => {
+          pm2AppsMap.set(app.name, {
+            id: app.pm_id,
+            name: app.name,
+            status: app.pm2_env.status,
+            memory: Math.round(app.monit ? app.monit.memory / 1024 / 1024 : 0),
+            cpu: app.monit ? app.monit.cpu : 0,
+            uptime: app.pm2_env.pm_uptime,
+            type: 'node'
+          });
+        });
+
+        db.all("SELECT * FROM apps", (dbErr, dbApps) => {
+          if (dbErr) {
+             console.error("Failed to read apps from db", dbErr);
+             return resolve(Array.from(pm2AppsMap.values()));
+          }
+          
+          dbApps.forEach(dbApp => {
+            if (pm2AppsMap.has(dbApp.name)) {
+               pm2AppsMap.get(dbApp.name).type = dbApp.type;
+               pm2AppsMap.get(dbApp.name).domain = dbApp.domain;
+            } else {
+               pm2AppsMap.set(dbApp.name, {
+                 id: `db_${dbApp.id}`,
+                 name: dbApp.name,
+                 status: 'online', // PHP/Laravel without PM2 are considered running if Nginx is running
+                 memory: 0,
+                 cpu: 0,
+                 uptime: new Date(dbApp.created_at).getTime(),
+                 type: dbApp.type,
+                 domain: dbApp.domain
+               });
+            }
+          });
+          resolve(Array.from(pm2AppsMap.values()));
+        });
       });
     });
   });

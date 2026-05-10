@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const fs = require('fs/promises');
 const { createSite } = require('./nginx');
+const db = require('./db');
 
 const activeDeploys = new Set();
 
@@ -154,6 +155,18 @@ echo "> [SUCCESS] Node.js Deployment completed successfully!"
         log(`[ERROR] Failed to attach domain: ${err.message}`);
       }
     }
+    
+    db.run(
+      `INSERT INTO apps (name, type, base_deploy_dir, ssh_key, domain, port) 
+       VALUES (?, ?, ?, ?, ?, ?) 
+       ON CONFLICT(name) DO UPDATE SET 
+       type=excluded.type, base_deploy_dir=excluded.base_deploy_dir, 
+       ssh_key=excluded.ssh_key, domain=excluded.domain, port=excluded.port`,
+      [appName, appType, baseDeployDir, sshKey, domain, port],
+      (err) => {
+        if (err) console.error("DB Insert Error for App:", err);
+      }
+    );
     
     io.emit('deploy-end');
   });

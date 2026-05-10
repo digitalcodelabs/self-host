@@ -83,11 +83,15 @@ The panel's backend runs internally on port `8080`. For security, it binds stric
 
 ## ✨ Features
 
-- **Live Dashboard:** Real-time CPU and Memory monitoring.
-- **Web Server Configuration:** Manage Nginx Virtual Hosts for Node.js proxies or PHP-FPM applications.
+- **Live Dashboard:** Real-time CPU, Memory, Disk, Network, and Running apps monitoring. Includes dynamic service management with instant visual feedback via modern toast notifications.
+- **Advanced Git Deployments:** Automated, WebSocket-streamed deployments from Git repositories. Supports multiple app stacks including **Node.js, Nuxt.js, Native Laravel, and Vanilla PHP**.
+- **Automated SSL & Virtual Hosts:** 1-click Nginx Virtual Host creation and secure proxy routing. Auto-issues SSL certificates utilizing Certbot.
+- **Dedicated SSH Key Management:** Generate custom deployment SSH keys (ed25519) directly from the interface to securely pull private GitHub/GitLab repositories.
+- **App Management Suite:** 
+  - **1-Click Redeploys:** Gracefully pull the latest code, run build scripts, and restart your app without leaving the dashboard.
+  - **Secure Deletion:** Remove applications securely from PM2 and Nginx registries with built-in safety mechanisms that protect system directories.
+  - **Live Configuration:** Integrated log viewer for `out.log` / `err.log` and a real-time `.env` configuration editor with auto-restart functionality.
+- **Database Provisioning:** Full MariaDB integration for provisioning databases, creating local users with automatic privilege assignment, and deleting users. Seamlessly manages connections via `.env` credentials or falls back to an interactive `sudo` privilege prompt.
+- **System Architecture:** Clean, headless daemon architecture utilizing an advanced "Sudo Prompt" modal system. Safely allows elevated execution of systemctl/nginx operations without exposing a root shell.
 - **PHP Manager:** Auto-detects installed PHP versions and allows 1-click FPM restarts.
-- **Git Deployments:** Automated, WebSocket-streamed deployments from Git repositories.
-- **App Management (PM2):** Integrated log viewer for `out.log` / `err.log` and a real-time `.env` configuration editor with auto-restart functionality.
-- **Database Management:** Full MariaDB integration for provisioning databases, creating local users with automatic privilege assignment, and deleting users. Seamlessly manages connections via `.env` credentials or falls back to an interactive `sudo` privilege prompt.
 - **Cron Management:** Visual crontab management for scheduled tasks.
-- **Service Monitoring:** PM2 process management and systemd service tracking (Nginx, MariaDB, Redis, Memcached).

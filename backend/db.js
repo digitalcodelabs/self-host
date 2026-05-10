@@ -19,6 +19,17 @@ db.serialize(() => {
       console.log('Seeded default user: admin / admin');
     }
   });
+
+  db.run(`CREATE TABLE IF NOT EXISTS apps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE,
+    type TEXT,
+    base_deploy_dir TEXT,
+    ssh_key TEXT,
+    domain TEXT,
+    port INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
 });
 
 module.exports = db;

@@ -339,7 +339,12 @@ app.delete('/api/apps/:name', authenticateToken, async (req, res) => {
       await deleteSite(appName, sudoPassword);
     } catch(e) { console.log('Nginx delete skipped or failed', e.message); }
     
-    res.json({ success: true, message: 'Application deleted from PM2 and Nginx successfully' });
+    // Delete from local DB
+    db.run('DELETE FROM apps WHERE name = ?', [appName], (err) => {
+      if (err) console.log('Failed to delete from DB:', err.message);
+    });
+    
+    res.json({ success: true, message: 'Application deleted from PM2, Nginx, and DB successfully' });
   } catch(e) {
     if (e.message === 'SUDO_REQUIRED' || e.message === 'SUDO_INVALID') return res.status(403).json({ error: e.message });
     res.status(500).json({error: e.message});
@@ -352,10 +357,24 @@ app.post('/api/apps/:name/redeploy', authenticateToken, async (req, res) => {
     const { sudoPassword, appType = 'node', baseDeployDir = '/var/www' } = req.body;
     if (!/^[a-zA-Z0-9-.]+$/.test(appName)) return res.status(400).json({error: 'Invalid app name'});
     
-    const deployDir = `${baseDeployDir.replace(/\/$/, '')}/${appName}`;
+    const getAppFromDb = (name) => new Promise((resolve, reject) => {
+      db.get('SELECT * FROM apps WHERE name = ?', [name], (err, row) => {
+        if (err) return reject(err);
+        resolve(row);
+      });
+    });
+    
+    const appRow = await getAppFromDb(appName);
+    const resolvedType = appRow ? appRow.type : appType;
+    const resolvedBaseDir = appRow ? appRow.base_deploy_dir : baseDeployDir;
+    const sshKey = appRow ? appRow.ssh_key : null;
+    
+    const deployDir = `${resolvedBaseDir.replace(/\/$/, '')}/${appName}`;
     const script = `#!/bin/bash
 set -e
 cd ${deployDir}
+
+export GIT_SSH_COMMAND="ssh ${sshKey ? `-i ~/.ssh/${sshKey}` : ''} -o StrictHostKeyChecking=accept-new"
 
 if [ -d ".git" ]; then
   echo "> Pulling latest changes..."
@@ -363,7 +382,7 @@ if [ -d ".git" ]; then
   git pull
 fi
 
-if [ "${appType}" == "laravel" ]; then
+if [ "${resolvedType}" == "laravel" ]; then
   if [ -f "composer.json" ]; then composer install --no-interaction --prefer-dist --optimize-autoloader; fi
   if [ -f "package.json" ]; then npm install && npm run build || true; fi
   php artisan optimize:clear || true
@@ -372,7 +391,7 @@ if [ "${appType}" == "laravel" ]; then
   exit 0
 fi
 
-if [ "${appType}" == "php" ]; then exit 0; fi
+if [ "${resolvedType}" == "php" ]; then exit 0; fi
 
 export PATH=$PATH:$(pwd)/node_modules/.bin
 OLD_NODE_ENV=$NODE_ENV
@@ -380,8 +399,8 @@ export NODE_ENV=development
 npm install --ignore-scripts --include=dev
 export NODE_ENV=$OLD_NODE_ENV
 
-if [ "${appType}" == "nuxt" ]; then npx nuxt prepare; fi
-if grep -q '"build":' package.json; then npm run build; elif [ "${appType}" == "nuxt" ]; then npx nuxt build; fi
+if [ "${resolvedType}" == "nuxt" ]; then npx nuxt prepare; fi
+if grep -q '"build":' package.json; then npm run build; elif [ "${resolvedType}" == "nuxt" ]; then npx nuxt build; fi
 
 pm2 restart "${appName}"
 `;
