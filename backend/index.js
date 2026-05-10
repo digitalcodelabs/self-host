@@ -10,7 +10,7 @@ const { RateLimiterMemory } = require('rate-limiter-flexible');
 const db = require('./db');
 const { getSystemStats, getApps, getServices, pm2Action, systemctlAction, getSshKeys, generateSshKey, getAppCwd } = require('./system');
 const { execSudo } = require('./shellService');
-const { getSites, createSite, issueSsl } = require('./nginx');
+const { getSites, createSite, issueSsl, deleteSite } = require('./nginx');
 const { getCronJobs, addCronJob } = require('./cron');
 const { deployApp } = require('./deploy');
 const { getPhpVersions, restartPhpFpm } = require('./php');
@@ -326,14 +326,6 @@ app.delete('/api/apps/:name', authenticateToken, async (req, res) => {
     const { sudoPassword, baseDeployDir = '/var/www' } = req.body;
     if (!/^[a-zA-Z0-9-.]+$/.test(appName)) return res.status(400).json({error: 'Invalid app name'});
     
-    // Determine the application directory safely
-    let deployDir = `${baseDeployDir.replace(/\/$/, '')}/${appName}`;
-    try {
-      // Try to get exact path from PM2 before deleting
-      const pm2Cwd = await getAppCwd(appName);
-      if (pm2Cwd) deployDir = pm2Cwd;
-    } catch(e) {}
-    
     // Stop and delete from PM2 (ignore errors if it doesn't exist)
     try {
       await pm2Action(appName, 'delete');
@@ -342,15 +334,12 @@ app.delete('/api/apps/:name', authenticateToken, async (req, res) => {
       exec('pm2 save', (err) => { if(err) console.log('pm2 save error:', err); });
     } catch(e) { console.log('PM2 delete skipped or failed', e.message); }
     
-    // Strict safety checks to prevent catastrophic deletions
-    const forbiddenPaths = ['/', '/var', '/var/www', '/etc', '/usr', '/bin', '/sbin', '/dev', '/sys', '/root', '/home', '/opt'];
-    if (forbiddenPaths.includes(deployDir) || !deployDir.startsWith('/')) {
-      return res.status(400).json({ error: 'Unsafe directory deletion prevented.' });
-    }
+    // Attempt to remove Nginx config
+    try {
+      await deleteSite(appName, sudoPassword);
+    } catch(e) { console.log('Nginx delete skipped or failed', e.message); }
     
-    await execSudo(`/bin/bash -c "if [ -d '${deployDir}' ]; then rm -rf '${deployDir}'; fi"`, sudoPassword);
-    
-    res.json({ success: true, message: 'Application deleted successfully' });
+    res.json({ success: true, message: 'Application deleted from PM2 and Nginx successfully' });
   } catch(e) {
     if (e.message === 'SUDO_REQUIRED' || e.message === 'SUDO_INVALID') return res.status(403).json({ error: e.message });
     res.status(500).json({error: e.message});
