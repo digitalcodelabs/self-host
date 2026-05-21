@@ -79,7 +79,7 @@ If Nginx is working but the panel isn't loading, the Node.js backend (`srvpanel.
   *(Note: The `install.sh` script handles this automatically, but if it failed, you can start it manually).*
 
 ### 3. I can access the panel on Port 8080, but not Port 80
-The panel's backend runs internally on port `8080`. For security, it binds strictly to localhost (`127.0.0.1`) in production, meaning Port `8080` is completely blocked from external access. You should always access the panel via Port `80` (or `443` if SSL is configured) so Nginx can securely proxy your traffic. If Port 80 isn't working, verify your Nginx syntax with `sudo nginx -t` and restart Nginx.
+The panel's backend runs internally on port `8080`. While it can be accessed directly via your server's IP address on port `8080` (unless blocked by a firewall like UFW), it is highly recommended to access the panel via Port `80` (or `443` if SSL is configured) so Nginx can securely proxy your traffic. If Port 80 isn't working, verify your Nginx syntax with `sudo nginx -t` and restart Nginx.
 
 ## ✨ Features
 
