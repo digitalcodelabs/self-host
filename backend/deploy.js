@@ -2,6 +2,7 @@ const { spawn } = require('child_process');
 const fs = require('fs/promises');
 const { createSite } = require('./nginx');
 const db = require('./db');
+const { isPortAvailable, getNextPort } = require('./system');
 
 const activeDeploys = new Set();
 
@@ -43,6 +44,19 @@ const deployApp = async (io, repoUrl, port, appName, branch = '', baseDeployDir 
 
   if (port && !/^[0-9]+$/.test(port.toString())) {
     throw new Error('Invalid port. Must be a number.');
+  }
+
+  let finalPort = null;
+  if (appType === 'node' || appType === 'nuxt') {
+    finalPort = parseInt(port || '3000', 10);
+    const existingAppWithPort = db.prepare("SELECT * FROM apps WHERE port = ? AND name != ?").get(finalPort, appName);
+    const physicalAvailable = await isPortAvailable(finalPort);
+
+    if (existingAppWithPort || !physicalAvailable) {
+      log(`[INFO] Port ${finalPort} is already in use. Searching for the next available port...`);
+      finalPort = await getNextPort(finalPort);
+      log(`[INFO] Found available port: ${finalPort}. Using this port for deployment.`);
+    }
   }
   
   const deployDir = `${baseDeployDir.replace(/\/$/, '')}/${appName}`;
@@ -122,14 +136,14 @@ else
   echo "> No build script found, skipping."
 fi
 
-echo "> Starting application via PM2 on port ${port}..."
-export PORT=${port}
+echo "> Starting application via PM2 on port \${finalPort}..."
+export PORT=\${finalPort}
 
-if [ "${appType}" == "nuxt" ] && [ -f ".output/server/index.mjs" ]; then
+if [ "\${appType}" == "nuxt" ] && [ -f ".output/server/index.mjs" ]; then
   echo "> Nuxt 3 output detected, starting from .output/server/index.mjs"
-  pm2 start .output/server/index.mjs --name "${appName}" --interpreter node || pm2 restart "${appName}"
+  pm2 start .output/server/index.mjs --name "\${appName}" --interpreter node || pm2 restart "\${appName}"
 else
-  pm2 start npm --name "${appName}" -- start || pm2 restart "${appName}"
+  pm2 start npm --name "\${appName}" -- start || pm2 restart "\${appName}"
 fi
 
 pm2 save
@@ -156,12 +170,12 @@ echo "> [SUCCESS] Node.js Deployment completed successfully!"
       return;
     }
     
-    if (domain) {
-      log(`> Attaching Nginx Virtual Host for ${domain} on port ${port}...`);
+    if (domain && finalPort) {
+      log(`> Attaching Nginx Virtual Host for ${domain} on port ${finalPort}...`);
       try {
         const nginxType = appType === 'nuxt' ? 'nuxt' : 'proxy';
         const docRoot = appType === 'nuxt' ? `${deployDir}/public` : null;
-        const result = await createSite(domain, nginxType, port, docRoot, null, sudoPassword);
+        const result = await createSite(domain, nginxType, finalPort, docRoot, null, sudoPassword);
         log(`> [NGINX] ${result.message}`);
       } catch (err) {
         log(`[ERROR] Failed to attach domain: ${err.message}`);
@@ -175,7 +189,7 @@ echo "> [SUCCESS] Node.js Deployment completed successfully!"
          ON CONFLICT(name) DO UPDATE SET 
          type=excluded.type, base_deploy_dir=excluded.base_deploy_dir, 
          ssh_key=excluded.ssh_key, domain=excluded.domain, port=excluded.port`
-      ).run(appName, appType, baseDeployDir, sshKey, domain, port);
+      ).run(appName, appType, baseDeployDir, sshKey, domain, finalPort);
     } catch (err) {
       console.error("DB Insert Error for App:", err);
     }

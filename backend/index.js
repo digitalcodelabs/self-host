@@ -8,7 +8,7 @@ const bcrypt = require('bcryptjs');
 const { RateLimiterMemory } = require('rate-limiter-flexible');
 
 const db = require('./db');
-const { getSystemStats, getApps, getServices, pm2Action, systemctlAction, getSshKeys, generateSshKey, getAppCwd } = require('./system');
+const { getSystemStats, getApps, getServices, pm2Action, systemctlAction, getSshKeys, generateSshKey, getAppCwd, isPortAvailable, getNextPort } = require('./system');
 const { execSudo } = require('./shellService');
 const { getSites, createSite, issueSsl, deleteSite, getSiteConfig, updateSiteConfig } = require('./nginx');
 const { getCronJobs, addCronJob } = require('./cron');
@@ -109,6 +109,16 @@ app.get('/api/system/apps', authenticateToken, async (req, res) => {
   try {
     const apps = await getApps();
     res.json(apps);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/system/next-port', authenticateToken, async (req, res) => {
+  try {
+    const startPort = parseInt(req.query.start || '3000', 10);
+    const port = await getNextPort(startPort);
+    res.json({ port });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -346,6 +356,68 @@ app.post('/api/apps/:name/env', authenticateToken, async (req, res) => {
     await fs.writeFile(envPath, content || '', 'utf8');
     res.json({ success: true });
   } catch(e) { res.status(500).json({error: e.message}); }
+});
+
+app.post('/api/apps/:name/port', authenticateToken, async (req, res) => {
+  const appName = req.params.name;
+  const { port: newPort, sudoPassword } = req.body;
+  
+  if (!/^[a-zA-Z0-9-.]+$/.test(appName)) return res.status(400).json({error: 'Invalid app name'});
+  if (!newPort || !/^\d+$/.test(newPort.toString())) return res.status(400).json({error: 'Invalid port'});
+  
+  try {
+    const portInt = parseInt(newPort, 10);
+    
+    // 1. Check if the port is already in use by another app in db
+    const existing = db.prepare("SELECT * FROM apps WHERE port = ? AND name != ?").get(portInt, appName);
+    if (existing) {
+      return res.status(400).json({ error: `Port ${newPort} is already in use by app ${existing.name}.` });
+    }
+    
+    // 2. Check if the port is physically available
+    const available = await isPortAvailable(portInt);
+    if (!available) {
+      return res.status(400).json({ error: `Port ${newPort} is already in use on the system.` });
+    }
+    
+    // 3. Get current app info from DB
+    const appRow = db.prepare("SELECT * FROM apps WHERE name = ?").get(appName);
+    if (!appRow) {
+      return res.status(404).json({ error: 'App not found in database.' });
+    }
+    
+    // 4. If app has a domain, update Nginx config
+    if (appRow.domain) {
+      const nginxType = appRow.type === 'nuxt' ? 'nuxt' : 'proxy';
+      const docRoot = appRow.type === 'nuxt' ? `${appRow.base_deploy_dir.replace(/\/$/, '')}/${appName}/public` : null;
+      await createSite(appRow.domain, nginxType, portInt, docRoot, null, sudoPassword);
+    }
+    
+    // 5. Update DB
+    db.prepare("UPDATE apps SET port = ? WHERE name = ?").run(portInt, appName);
+    
+    // 6. Update PM2 env and restart
+    if (appRow.type === 'node' || appRow.type === 'nuxt') {
+      const { exec } = require('child_process');
+      await new Promise((resolve, reject) => {
+        exec(`PORT=${portInt} pm2 restart ${appName} --update-env && pm2 save`, (err, stdout, stderr) => {
+          if (err) {
+            console.error(`PM2 port restart error for ${appName}:`, err);
+            return reject(new Error(`Failed to restart PM2 with new port: ${stderr || err.message}`));
+          }
+          resolve();
+        });
+      });
+    }
+    
+    res.json({ success: true, message: 'Port updated successfully' });
+  } catch (err) {
+    console.error('[Port Update API Error]', err);
+    if (err.message === 'SUDO_REQUIRED' || err.message === 'SUDO_INVALID') {
+      return res.status(403).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.delete('/api/apps/:name', authenticateToken, async (req, res) => {

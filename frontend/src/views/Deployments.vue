@@ -61,7 +61,28 @@ const generateSshKey = async () => {
 }
 
 import { onMounted } from 'vue'
-onMounted(fetchSshKey)
+
+const fetchNextPort = async () => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch('/api/system/next-port', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data.port) {
+        port.value = data.port.toString()
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch next port:', error)
+  }
+}
+
+onMounted(async () => {
+  await fetchSshKey()
+  await fetchNextPort()
+})
 
 const copyToClipboard = async (text) => {
   if (!text) return;

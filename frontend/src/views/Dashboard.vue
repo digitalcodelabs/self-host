@@ -108,6 +108,8 @@ const handleSudoSubmit = (pwd) => {
       deleteApp(currentAppSudoAction.value.appName, pwd)
     } else if (currentAppSudoAction.value.actionType === 'redeploy') {
       redeployApp(currentAppSudoAction.value.appName, pwd)
+    } else if (currentAppSudoAction.value.actionType === 'change-port') {
+      savePort(pwd)
     }
   }
 }
@@ -269,6 +271,74 @@ const saveEnv = async () => {
   }
 }
 
+const showPortModal = ref(false)
+const currentPortApp = ref('')
+const newPortNumber = ref(3000)
+const savingPort = ref(false)
+const portError = ref('')
+
+const openPortModal = (app) => {
+  currentPortApp.value = app.name
+  newPortNumber.value = app.port || 3000
+  portError.value = ''
+  showPortModal.value = true
+}
+
+const savePort = async (sudoPwd = null) => {
+  savingPort.value = true
+  portError.value = ''
+  if (sudoPwd && typeof sudoPwd === 'string') currentSudoPassword.value = sudoPwd
+  
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`/api/apps/${currentPortApp.value}/port`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ 
+        port: parseInt(newPortNumber.value, 10),
+        sudoPassword: currentSudoPassword.value
+      })
+    })
+    
+    const data = await res.json()
+    
+    if (res.status === 403 && data.error === 'SUDO_REQUIRED') {
+      currentAppSudoAction.value = { appName: currentPortApp.value, actionType: 'change-port' }
+      showSudoPrompt.value = true
+      savingPort.value = false
+      return
+    }
+    
+    if (res.status === 403 && data.error === 'SUDO_INVALID') {
+      sudoError.value = 'Incorrect sudo password.'
+      showSudoPrompt.value = true
+      currentSudoPassword.value = null
+      savingPort.value = false
+      return
+    }
+    
+    showSudoPrompt.value = false
+    currentAppSudoAction.value = null
+    
+    if (!res.ok) {
+      portError.value = data.error || 'Failed to update port'
+      return
+    }
+    
+    showPortModal.value = false
+    successMessage.value = `Successfully updated port for ${currentPortApp.value} to ${newPortNumber.value}`
+    setTimeout(() => { successMessage.value = '' }, 3000)
+    await fetchDashboardData()
+  } catch (e) {
+    portError.value = 'Failed to update port'
+  } finally {
+    savingPort.value = false
+  }
+}
+
 const showLogsModal = ref(false)
 const currentLogsApp = ref('')
 const currentLogsContent = ref({ out: '', err: '' })
@@ -407,7 +477,9 @@ const refreshLogs = async () => {
               <div class="w-2 h-2 rounded-full" :class="app.status === 'online' ? 'bg-green-500' : 'bg-red-500'"></div>
               <div>
                 <h4 class="text-white font-medium text-sm">{{ app.name }}</h4>
-                <div class="flex gap-3 text-gray-400 text-xs mt-1">
+                <div class="flex gap-3 text-gray-400 text-xs mt-1 flex-wrap items-center">
+                  <span v-if="app.port" class="text-emerald-400 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Port: {{ app.port }}</span>
+                  <span v-if="app.domain" class="text-blue-400 font-medium">Domain: {{ app.domain }}</span>
                   <span>RAM: {{ app.memory }}MB</span>
                   <span>CPU: {{ app.cpu }}%</span>
                   <span>Uptime: {{ Math.round((Date.now() - app.uptime)/1000/60) }} min</span>
@@ -416,6 +488,9 @@ const refreshLogs = async () => {
             </div>
             <div class="flex items-center space-x-2">
               <div v-if="processingApp === app.name" class="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+              <button v-if="app.port" :disabled="processingApp === app.name" @click="openPortModal(app)" class="text-emerald-400 hover:text-emerald-300 px-2 py-1.5 transition-colors rounded-md hover:bg-emerald-500/10 text-xs font-bold disabled:opacity-50" title="Change Port">
+                PORT
+              </button>
               <button :disabled="processingApp === app.name" @click="openEnvModal(app.name)" class="text-indigo-400 hover:text-indigo-300 px-2 py-1.5 transition-colors rounded-md hover:bg-indigo-500/10 text-xs font-bold disabled:opacity-50" title=".env Editor">
                 ENV
               </button>
@@ -536,6 +611,32 @@ const refreshLogs = async () => {
             <div class="px-4 py-2 bg-gray-900/80 text-xs font-semibold text-gray-400 tracking-wider">STDERR (err.log)</div>
             <pre class="flex-1 p-4 bg-black text-red-400 text-xs font-mono overflow-auto whitespace-pre-wrap break-all">{{ currentLogsContent.err || 'No standard errors.' }}</pre>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Port Modal -->
+    <div v-if="showPortModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div class="bg-gray-950 border border-gray-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+        <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
+          <h3 class="text-white font-semibold">Change Port: {{ currentPortApp }}</h3>
+          <button @click="showPortModal = false" class="text-gray-400 hover:text-white">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">New Port</label>
+            <input v-model="newPortNumber" type="number" placeholder="3000" class="w-full bg-gray-950 border border-gray-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-shadow" required />
+            <p class="text-xs text-gray-500 mt-2 leading-relaxed">Changing the port will update the DB, recreate Nginx virtual host configurations (if a domain is attached), and restart PM2.</p>
+          </div>
+          <div v-if="portError" class="text-xs text-red-500 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded">{{ portError }}</div>
+        </div>
+        <div class="px-6 py-4 border-t border-gray-800 flex justify-end gap-3 bg-gray-900/50">
+          <button @click="showPortModal = false" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+          <button @click="savePort(null)" :disabled="savingPort" class="px-4 py-2 text-sm bg-white text-black font-semibold rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50">
+            {{ savingPort ? 'Saving...' : 'Update Port' }}
+          </button>
         </div>
       </div>
     </div>

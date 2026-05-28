@@ -68,6 +68,8 @@ const getApps = () => {
             if (pm2AppsMap.has(dbApp.name)) {
                pm2AppsMap.get(dbApp.name).type = dbApp.type;
                pm2AppsMap.get(dbApp.name).domain = dbApp.domain;
+               pm2AppsMap.get(dbApp.name).port = dbApp.port;
+               pm2AppsMap.get(dbApp.name).base_deploy_dir = dbApp.base_deploy_dir;
             } else {
                pm2AppsMap.set(dbApp.name, {
                  id: `db_${dbApp.id}`,
@@ -77,7 +79,9 @@ const getApps = () => {
                  cpu: 0,
                  uptime: new Date(dbApp.created_at).getTime(),
                  type: dbApp.type,
-                 domain: dbApp.domain
+                 domain: dbApp.domain,
+                 port: dbApp.port,
+                 base_deploy_dir: dbApp.base_deploy_dir
                });
             }
           });
@@ -228,4 +232,36 @@ const generateSshKey = async (keyName = 'id_ed25519') => {
   });
 };
 
-module.exports = { getSystemStats, getApps, getServices, pm2Action, getAppLogs, systemctlAction, getSshKeys, generateSshKey, getAppCwd };
+const net = require('net');
+
+const isPortAvailable = (port) => {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once('error', (err) => {
+      resolve(false);
+    });
+    server.once('listening', () => {
+      server.close();
+      resolve(true);
+    });
+    server.listen(port, '0.0.0.0');
+  });
+};
+
+const getNextPort = async (startPort = 3000) => {
+  let port = startPort;
+  const dbApps = db.prepare("SELECT port FROM apps").all();
+  const usedDbPorts = new Set(dbApps.map(app => app.port).filter(Boolean));
+  
+  while (true) {
+    if (!usedDbPorts.has(port)) {
+      const available = await isPortAvailable(port);
+      if (available) {
+        return port;
+      }
+    }
+    port++;
+  }
+};
+
+module.exports = { getSystemStats, getApps, getServices, pm2Action, getAppLogs, systemctlAction, getSshKeys, generateSshKey, getAppCwd, isPortAvailable, getNextPort };
