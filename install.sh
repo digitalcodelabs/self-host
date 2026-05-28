@@ -127,7 +127,7 @@ echo "🌐 Configuring Nginx reverse proxy for panel..."
 # Note: In production, you would ask the user for a domain name and run certbot here.
 cat <<EOF > /etc/nginx/sites-available/srvpanel.conf
 server {
-    listen 80 default_server;
+    listen 6767 default_server;
     server_name _; # Catch-all, access via IP for now
 
     location / {
