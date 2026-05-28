@@ -168,17 +168,17 @@ echo "> [SUCCESS] Node.js Deployment completed successfully!"
       }
     }
     
-    db.run(
-      `INSERT INTO apps (name, type, base_deploy_dir, ssh_key, domain, port) 
-       VALUES (?, ?, ?, ?, ?, ?) 
-       ON CONFLICT(name) DO UPDATE SET 
-       type=excluded.type, base_deploy_dir=excluded.base_deploy_dir, 
-       ssh_key=excluded.ssh_key, domain=excluded.domain, port=excluded.port`,
-      [appName, appType, baseDeployDir, sshKey, domain, port],
-      (err) => {
-        if (err) console.error("DB Insert Error for App:", err);
-      }
-    );
+    try {
+      db.prepare(
+        `INSERT INTO apps (name, type, base_deploy_dir, ssh_key, domain, port) 
+         VALUES (?, ?, ?, ?, ?, ?) 
+         ON CONFLICT(name) DO UPDATE SET 
+         type=excluded.type, base_deploy_dir=excluded.base_deploy_dir, 
+         ssh_key=excluded.ssh_key, domain=excluded.domain, port=excluded.port`
+      ).run(appName, appType, baseDeployDir, sshKey, domain, port);
+    } catch (err) {
+      console.error("DB Insert Error for App:", err);
+    }
     
     io.emit('deploy-end');
   });

@@ -62,12 +62,8 @@ const getApps = () => {
           });
         });
 
-        db.all("SELECT * FROM apps", (dbErr, dbApps) => {
-          if (dbErr) {
-             console.error("Failed to read apps from db", dbErr);
-             return resolve(Array.from(pm2AppsMap.values()));
-          }
-          
+        try {
+          const dbApps = db.prepare("SELECT * FROM apps").all();
           dbApps.forEach(dbApp => {
             if (pm2AppsMap.has(dbApp.name)) {
                pm2AppsMap.get(dbApp.name).type = dbApp.type;
@@ -85,8 +81,10 @@ const getApps = () => {
                });
             }
           });
-          resolve(Array.from(pm2AppsMap.values()));
-        });
+        } catch (dbErr) {
+          console.error("Failed to read apps from db", dbErr);
+        }
+        resolve(Array.from(pm2AppsMap.values()));
       });
     });
   });

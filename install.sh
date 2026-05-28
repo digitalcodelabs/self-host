@@ -24,7 +24,7 @@ apt-get install -y curl git unzip nginx certbot python3-certbot-nginx sqlite3 uf
 # 3. Install Node.js (LTS) & PM2
 if ! command -v node &> /dev/null; then
     echo "🟩 Installing Node.js..."
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
     apt-get install -y nodejs
 fi
 

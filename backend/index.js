@@ -57,8 +57,9 @@ const loginLimiter = (req, res, next) => {
 
 app.post('/api/auth/login', loginLimiter, (req, res) => {
   const { username, password } = req.body;
-  db.get("SELECT * FROM users WHERE username = ?", [username], (err, user) => {
-    if (err || !user) return res.status(401).json({ error: 'Invalid credentials' });
+  try {
+    const user = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     
     if (bcrypt.compareSync(password, user.password)) {
       const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
@@ -66,25 +67,30 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
     } else {
       res.status(401).json({ error: 'Invalid credentials' });
     }
-  });
+  } catch (err) {
+    console.error("Login DB Error:", err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 app.post('/api/auth/change-password', authenticateToken, (req, res) => {
   const { currentPassword, newPassword } = req.body;
   
-  db.get("SELECT * FROM users WHERE id = ?", [req.user.id], (err, user) => {
-    if (err || !user) return res.status(401).json({ error: 'User not found' });
+  try {
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+    if (!user) return res.status(401).json({ error: 'User not found' });
     
     if (bcrypt.compareSync(currentPassword, user.password)) {
       const hashed = bcrypt.hashSync(newPassword, 10);
-      db.run("UPDATE users SET password = ? WHERE id = ?", [hashed, req.user.id], (updateErr) => {
-        if (updateErr) return res.status(500).json({ error: 'Database error' });
-        res.json({ success: true, message: 'Password updated successfully' });
-      });
+      db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashed, req.user.id);
+      res.json({ success: true, message: 'Password updated successfully' });
     } else {
       res.status(401).json({ error: 'Incorrect current password' });
     }
-  });
+  } catch (err) {
+    console.error("Change Password DB Error:", err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
@@ -362,9 +368,11 @@ app.delete('/api/apps/:name', authenticateToken, async (req, res) => {
     } catch(e) { console.log('Nginx delete skipped or failed', e.message); }
     
     // Delete from local DB
-    db.run('DELETE FROM apps WHERE name = ?', [appName], (err) => {
-      if (err) console.log('Failed to delete from DB:', err.message);
-    });
+    try {
+      db.prepare('DELETE FROM apps WHERE name = ?').run(appName);
+    } catch (err) {
+      console.log('Failed to delete from DB:', err.message);
+    }
     
     res.json({ success: true, message: 'Application deleted from PM2, Nginx, and DB successfully' });
   } catch(e) {
@@ -379,12 +387,13 @@ app.post('/api/apps/:name/redeploy', authenticateToken, async (req, res) => {
     const { sudoPassword, appType = 'node', baseDeployDir = '/var/www' } = req.body;
     if (!/^[a-zA-Z0-9-.]+$/.test(appName)) return res.status(400).json({error: 'Invalid app name'});
     
-    const getAppFromDb = (name) => new Promise((resolve, reject) => {
-      db.get('SELECT * FROM apps WHERE name = ?', [name], (err, row) => {
-        if (err) return reject(err);
-        resolve(row);
-      });
-    });
+    const getAppFromDb = (name) => {
+      try {
+        return db.prepare('SELECT * FROM apps WHERE name = ?').get(name);
+      } catch (err) {
+        throw err;
+      }
+    };
     
     const appRow = await getAppFromDb(appName);
     const resolvedType = appRow ? appRow.type : appType;
