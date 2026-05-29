@@ -14,6 +14,23 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# Ensure PANEL_DIR is not empty/unset
+if [ -z "${PANEL_DIR}" ]; then
+  echo "❌ Error: PANEL_DIR is not set or is empty."
+  exit 1
+fi
+
+# Check if the panel directory already exists
+if [ -d "${PANEL_DIR}" ]; then
+  echo "⚠️  Warning: The panel directory '${PANEL_DIR}' already exists."
+  echo "   Running this installation will OVERWRITE all existing files and configuration."
+  read -p "Are you sure you want to continue? [y/N]: " confirm < /dev/tty
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    echo "❌ Installation aborted by user."
+    exit 0
+  fi
+fi
+
 echo "🚀 Starting Installation of Server Panel..."
 
 # 2. Update and install core dependencies
@@ -42,13 +59,13 @@ fi
 # 4. Create the dedicated, unprivileged panel user
 if ! id "$PANEL_USER" &>/dev/null; then
     echo "👤 Creating dedicated user: $PANEL_USER..."
-    useradd -r -d $PANEL_DIR -s /bin/bash $PANEL_USER
+    useradd -r -d "$PANEL_DIR" -s /bin/bash "$PANEL_USER"
 fi
 
 echo "⚙️ Configuring PM2 as a standalone system service..."
 PM2_BIN=$(which pm2)
 NODE_BIN_DIR=$(dirname $(which node))
-env PATH=$PATH:$NODE_BIN_DIR $PM2_BIN startup systemd -u $PANEL_USER --hp $PANEL_DIR
+env PATH=$PATH:$NODE_BIN_DIR $PM2_BIN startup systemd -u "$PANEL_USER" --hp "$PANEL_DIR"
 
 # 5. Setup Secure Sudoers Rules for the Panel User
 # This allows the panel to manage Nginx, PM2, and systemctl securely without full root access
@@ -77,26 +94,26 @@ chmod 0440 /etc/sudoers.d/$PANEL_USER
 
 # 6. Clone Repository and Build
 echo "📁 Cloning Repository..."
-rm -rf $PANEL_DIR
-git clone https://github.com/digitalcodelabs/self-host.git $PANEL_DIR
+rm -rf "$PANEL_DIR"
+git clone https://github.com/digitalcodelabs/self-host.git "$PANEL_DIR"
 
 echo "🛠️ Building Frontend..."
-cd $PANEL_DIR/frontend
+cd "$PANEL_DIR/frontend"
 npm install
 npm run build
 
 echo "🛠️ Installing Backend Dependencies..."
-cd $PANEL_DIR/backend
+cd "$PANEL_DIR/backend"
 npm install
 
 echo "🔒 Generating secure configuration..."
 RANDOM_SECRET=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 64 | head -n 1)
-cat <<EOF > $PANEL_DIR/backend/.env
+cat <<EOF > "$PANEL_DIR/backend/.env"
 JWT_SECRET=$RANDOM_SECRET
 EOF
 
 echo "🔑 Setting Permissions..."
-chown -R $PANEL_USER:$PANEL_USER $PANEL_DIR
+chown -R "$PANEL_USER:$PANEL_USER" "$PANEL_DIR"
 
 # 7. Setup Systemd Service to keep backend running
 echo "⚙️ Creating Systemd service..."
