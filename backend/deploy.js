@@ -136,14 +136,14 @@ else
   echo "> No build script found, skipping."
 fi
 
-echo "> Starting application via PM2 on port \${finalPort}..."
-export PORT=\${finalPort}
+echo "> Starting application via PM2 on port ${finalPort}..."
+export PORT=${finalPort}
 
-if [ "\${appType}" == "nuxt" ] && [ -f ".output/server/index.mjs" ]; then
+if [ "${appType}" == "nuxt" ] && [ -f ".output/server/index.mjs" ]; then
   echo "> Nuxt 3 output detected, starting from .output/server/index.mjs"
-  pm2 start .output/server/index.mjs --name "\${appName}" --interpreter node || pm2 restart "\${appName}"
+  pm2 start .output/server/index.mjs --name "${appName}" --interpreter node || pm2 restart "${appName}"
 else
-  pm2 start npm --name "\${appName}" -- start || pm2 restart "\${appName}"
+  pm2 start npm --name "${appName}" -- start || pm2 restart "${appName}"
 fi
 
 pm2 save
